@@ -21,7 +21,120 @@ internal fun createProactiveWakeupTool(
     conversations: ConversationRepository,
     assistantId: String,
     conversationId: String,
-): Tool =
+): Tool = proactiveWakeupTool { arguments ->
+    try {
+        val args = arguments.jsonObject
+        val action = args["action"]?.jsonPrimitive?.content ?: error("缺少 action")
+        require(action in setOf("schedule", "get", "cancel")) { "未知 action" }
+        val conversation = conversations.getConversationById(Uuid.parse(conversationId))
+        require(conversation?.assistantId?.toString() == assistantId) { "原会话已不存在或角色不匹配" }
+        val now = System.currentTimeMillis()
+        val zone = ZoneId.systemDefault()
+        val wakeup =
+            if (action == "schedule") {
+                val at =
+                    parseProactiveWakeupTime(
+                        args["at"]?.jsonPrimitive?.content.orEmpty(),
+                        zone,
+                        now,
+                    )
+                val reason = args["reason"]?.jsonPrimitive?.content.orEmpty().trim()
+                require(reason.isNotBlank() && reason.length <= 500) { "请填写1到500字的约定背景" }
+                ProactiveWakeup(
+                    Uuid.random().toString(),
+                    assistantId,
+                    conversationId,
+                    at,
+                    zone.id,
+                    reason,
+                )
+            } else null
+        if (action != "get")
+            store.update { settings ->
+                val setting = settings.proactiveMessageSetting
+                if (action == "schedule")
+                    require(setting.enabled && setting.allowAiWakeups) { "用户尚未开启 AI 主动唤醒" }
+                val updated =
+                    if (wakeup != null) setting.aiWakeups.scheduleWakeup(wakeup)
+                    else
+                        setting.aiWakeups.map { old ->
+                            if (
+                                old.assistantId == assistantId &&
+                                    old.conversationId == conversationId &&
+                                    old.status in
+                                        setOf(
+                                            ProactiveWakeupStatus.Pending,
+                                            ProactiveWakeupStatus.Running,
+                                        )
+                            )
+                                old.copy(
+                                    status = ProactiveWakeupStatus.Cancelled,
+                                    outcome = "AI 应用户要求取消",
+                                )
+                            else old
+                        }
+                settings.copy(
+                    proactiveMessageSetting =
+                        setting.copy(aiWakeups = updated.trimWakeupHistory())
+                )
+            }
+        val setting = store.settingsFlowRaw.first().proactiveMessageSetting
+        if (action != "get") ProactiveMessageService.scheduleNext(context, setting)
+        val result = buildJsonObject {
+            put("success", true)
+            put("current_time", Instant.ofEpochMilli(now).atZone(zone).toString())
+            put("timezone", zone.id)
+            put("enabled", setting.enabled && setting.allowAiWakeups)
+            wakeup?.let {
+                val effective = nextProactiveAllowedTime(setting, it.atMillis, zone)
+                put("scheduled_at", Instant.ofEpochMilli(effective).atZone(zone).toString())
+                put("quiet_hours_deferred", effective != it.atMillis)
+            }
+            put(
+                "appointments",
+                buildJsonArray {
+                    setting.aiWakeups
+                        .filter {
+                            it.assistantId == assistantId &&
+                                it.conversationId == conversationId
+                        }
+                        .forEach { item ->
+                            add(
+                                buildJsonObject {
+                                    put("id", item.id)
+                                    put(
+                                        "at",
+                                        Instant.ofEpochMilli(item.atMillis)
+                                            .atZone(ZoneId.of(item.zoneId))
+                                            .toString(),
+                                    )
+                                    put("status", item.status.name)
+                                    put("reason", item.reason)
+                                    put("outcome", item.outcome)
+                                }
+                            )
+                        }
+                },
+            )
+        }
+        listOf(UIMessagePart.Text(result.toString()))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Exception) {
+        listOf(
+            UIMessagePart.Text(
+                buildJsonObject {
+                    put("success", false)
+                    put("error", error.message ?: "主动唤醒安排失败")
+                }
+                    .toString()
+            )
+        )
+    }
+}
+
+/** Keep the tool definition independent of the device clock; live time belongs in its result. */
+internal fun proactiveWakeupTool(execute: suspend (JsonElement) -> List<UIMessagePart>): Tool =
     Tool(
         name = "proactive_wakeup",
         description =
@@ -29,9 +142,8 @@ internal fun createProactiveWakeupTool(
         systemPrompt = { _, _ ->
             "你可以根据聊天自然决定下次来找用户的具体时间，用 proactive_wakeup 实际保存后再说约好了；不要只口头承诺。" +
                 "每个会话保留一个待执行约定，新约定仅替换同一会话的旧约定。有约定时暂停随机提前检查，用户可在主动消息设置中取消。" +
-                "遵守总开关和免打扰；后台限制或断网可能延迟。当前手机时间：" +
-                java.time.ZonedDateTime.now()
-                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z"))
+                "遵守总开关和免打扰；后台限制或断网可能延迟。" +
+                "需要当前手机日期、时间或时区来确定约定时，先调用 get，使用返回的 current_time 和 timezone；不要猜测。"
         },
         parameters = {
             InputSchema.Obj(
@@ -60,113 +172,5 @@ internal fun createProactiveWakeupTool(
                 required = listOf("action"),
             )
         },
-        execute = { arguments ->
-            try {
-                val args = arguments.jsonObject
-                val action = args["action"]?.jsonPrimitive?.content ?: error("缺少 action")
-                require(action in setOf("schedule", "get", "cancel")) { "未知 action" }
-                val conversation = conversations.getConversationById(Uuid.parse(conversationId))
-                require(conversation?.assistantId?.toString() == assistantId) { "原会话已不存在或角色不匹配" }
-                val now = System.currentTimeMillis()
-                val zone = ZoneId.systemDefault()
-                val wakeup =
-                    if (action == "schedule") {
-                        val at =
-                            parseProactiveWakeupTime(
-                                args["at"]?.jsonPrimitive?.content.orEmpty(),
-                                zone,
-                                now,
-                            )
-                        val reason = args["reason"]?.jsonPrimitive?.content.orEmpty().trim()
-                        require(reason.isNotBlank() && reason.length <= 500) { "请填写1到500字的约定背景" }
-                        ProactiveWakeup(
-                            Uuid.random().toString(),
-                            assistantId,
-                            conversationId,
-                            at,
-                            zone.id,
-                            reason,
-                        )
-                    } else null
-                if (action != "get")
-                    store.update { settings ->
-                        val setting = settings.proactiveMessageSetting
-                        if (action == "schedule")
-                            require(setting.enabled && setting.allowAiWakeups) { "用户尚未开启 AI 主动唤醒" }
-                        val updated =
-                            if (wakeup != null) setting.aiWakeups.scheduleWakeup(wakeup)
-                            else
-                                setting.aiWakeups.map { old ->
-                                    if (
-                                        old.assistantId == assistantId &&
-                                            old.conversationId == conversationId &&
-                                            old.status in
-                                                setOf(
-                                                    ProactiveWakeupStatus.Pending,
-                                                    ProactiveWakeupStatus.Running,
-                                                )
-                                    )
-                                        old.copy(
-                                            status = ProactiveWakeupStatus.Cancelled,
-                                            outcome = "AI 应用户要求取消",
-                                        )
-                                    else old
-                                }
-                        settings.copy(
-                            proactiveMessageSetting =
-                                setting.copy(aiWakeups = updated.trimWakeupHistory())
-                        )
-                    }
-                val setting = store.settingsFlowRaw.first().proactiveMessageSetting
-                if (action != "get") ProactiveMessageService.scheduleNext(context, setting)
-                val result = buildJsonObject {
-                    put("success", true)
-                    put("enabled", setting.enabled && setting.allowAiWakeups)
-                    wakeup?.let {
-                        val effective = nextProactiveAllowedTime(setting, it.atMillis, zone)
-                        put("scheduled_at", Instant.ofEpochMilli(effective).atZone(zone).toString())
-                        put("quiet_hours_deferred", effective != it.atMillis)
-                    }
-                    put(
-                        "appointments",
-                        buildJsonArray {
-                            setting.aiWakeups
-                                .filter {
-                                    it.assistantId == assistantId &&
-                                        it.conversationId == conversationId
-                                }
-                                .forEach { item ->
-                                    add(
-                                        buildJsonObject {
-                                            put("id", item.id)
-                                            put(
-                                                "at",
-                                                Instant.ofEpochMilli(item.atMillis)
-                                                    .atZone(ZoneId.of(item.zoneId))
-                                                    .toString(),
-                                            )
-                                            put("status", item.status.name)
-                                            put("reason", item.reason)
-                                            put("outcome", item.outcome)
-                                        }
-                                    )
-                                }
-                        },
-                    )
-                }
-                listOf(UIMessagePart.Text(result.toString()))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                listOf(
-                    UIMessagePart.Text(
-                        buildJsonObject {
-                            put("success", false)
-                            put("error", error.message ?: "主动唤醒安排失败")
-                        }
-                            .toString()
-                    )
-                )
-            }
-        },
+        execute = execute,
     )
