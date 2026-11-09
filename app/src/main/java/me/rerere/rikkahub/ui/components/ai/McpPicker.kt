@@ -26,6 +26,8 @@ import me.rerere.rikkahub.ui.theme.MaterialCard as Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
 import me.rerere.rikkahub.ui.theme.MaterialListItem as ListItem
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -172,6 +174,7 @@ fun McpPickerListItem(
     servers: List<McpServerConfig>,
     mcpManager: McpManager,
     modifier: Modifier = Modifier,
+    colors: ListItemColors = ListItemDefaults.colors(),
     onUpdateAssistant: (Assistant) -> Unit
 ) {
     var showMcpPicker by remember { mutableStateOf(false) }
@@ -184,6 +187,7 @@ fun McpPickerListItem(
     }
 
     ListItem(
+        colors = colors,
         leadingContent = {
             if (loading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))

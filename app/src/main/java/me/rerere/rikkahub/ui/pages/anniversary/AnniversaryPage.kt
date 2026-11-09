@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -222,27 +221,21 @@ private fun AnniversaryHero(entry: AnniversaryEntry?) {
         ChronoUnit.DAYS.between(today, candidate)
     }
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), RoundedCornerShape(28.dp)),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
+        ),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-                        )
-                    )
-                )
-                .padding(26.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(22.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
                 Text(
                     text = entry?.let {
                         if (it.countdown) "距离“${it.title}”还有" else "我们的“${it.title}”"
@@ -277,18 +270,15 @@ private fun AnniversaryHero(entry: AnniversaryEntry?) {
             }
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .size(84.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), CircleShape),
+                    .size(56.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = HugeIcons.InLove,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(34.dp),
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
