@@ -12,6 +12,7 @@ import kotlinx.coroutines.ensureActive
 import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
 import java.io.File
+import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 
@@ -35,13 +36,13 @@ class AutoBackupService(
             if (!force && !config.enabled) return@withContext
             check(config.folder.isNotBlank()) { "请先选择备份文件夹" }
             folder.requireAccess(config.folder)
-            cleanup()
-            check(store.current().retiredFiles.isEmpty()) {
-                "旧自动备份暂时无法清理，请检查保存文件夹，或选择另一个备份文件夹"
+            val now = Instant.now()
+            if (!force && state.lastSuccess > 0 &&
+                now.isBefore(nextAutoBackupAt(now, state.lastSuccess, config, ZoneId.systemDefault()))
+            ) {
+                cleanupRetired(config.folder)
+                return@withContext
             }
-            if (!force && state.lastSuccess > 0 && Instant.now().isBefore(
-                nextAutoBackupAt(Instant.now(), state.lastSuccess, config, ZoneId.systemDefault())
-            )) return@withContext
             val prepared = exporter.prepareBackupFile(WebDavConfig(), requireCompletePlugins = true)
             archive = prepared
             val job = currentCoroutineContext()
@@ -49,12 +50,16 @@ class AutoBackupService(
             // Never overwrite the known-good file. Persist a recovery pointer before writing the candidate.
             val uri = folder.create(config.folder)
             candidate = uri
-            store.pending(uri)
+            store.stage(uri, config.revision)
             VerifiedBackupWriter.copyAndVerify(
                 prepared, { folder.output(uri) }, { folder.input(uri) },
             ) { job.ensureActive() }
-            store.publish(uri, config.revision, System.currentTimeMillis())
-            cleanup()
+            job.ensureActive()
+            withContext(NonCancellable) {
+                store.publish(uri, config.revision, System.currentTimeMillis())
+                candidate = null
+            }
+            cleanupRetired(config.folder)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -68,7 +73,10 @@ class AutoBackupService(
                 try {
                     candidate?.let { uri ->
                         if (store.current().latestFile != uri) {
-                            runCatching { folder.delete(uri); store.clearPending() }
+                            runCatching {
+                                folder.delete(uri)
+                                store.clearPending(uri)
+                            }
                         }
                     }
                 } finally {
@@ -80,23 +88,23 @@ class AutoBackupService(
         }
     }
 
-    private suspend fun cleanup() {
-        val state = store.current()
-        if (state.pendingFile.isNotBlank() && state.pendingFile != state.latestFile) {
-            folder.delete(state.pendingFile)
-            store.clearPending()
+    private suspend fun cleanupRetired(folderUri: String) {
+        val state = try {
+            store.current()
+        } catch (_: IOException) {
+            return
         }
+        if (state.config.folder != folderUri) return
         for (uri in state.retiredFiles) {
-            if (uri == state.latestFile) continue
+            if (uri == state.latestFile || uri == state.pendingFile) continue
             try {
                 folder.delete(uri)
                 store.retiredRemoved(uri)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                store.error("新备份已保存，但旧备份未能清理；下次将重试")
+                // Keep it tracked for a later retry. Cleanup never changes the backup result.
             }
         }
-        if (state.retiredFiles.isNotEmpty() && store.current().retiredFiles.isEmpty()) store.error("")
     }
 }

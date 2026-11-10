@@ -159,6 +159,47 @@ class AutoBackupTest {
     }
 
     @Test
+    fun `a failed cleanup never blocks new verified backups or loses old file records`() {
+        val blocked = AutoBackupState(
+            config = AutoBackupConfig(revision = 2),
+            latestFile = "last-good.zip",
+            pendingFile = "interrupted.zip",
+            retiredFiles = setOf("undeletable.zip"),
+            lastSuccess = 100,
+        )
+        val staged = blocked.withStagedBackup("next.zip", 2)
+        assertEquals("last-good.zip", staged.latestFile)
+        assertEquals(100L, staged.lastSuccess)
+        assertEquals(setOf("undeletable.zip", "interrupted.zip"), staged.retiredFiles)
+
+        val verified = staged.withPublishedBackup("next.zip", 2, 200)
+        assertEquals("next.zip", verified.latestFile)
+        assertEquals(200L, verified.lastSuccess)
+        assertEquals("", verified.pendingFile)
+        assertEquals(setOf("undeletable.zip", "interrupted.zip", "last-good.zip"), verified.retiredFiles)
+
+        val following = verified.withStagedBackup("following.zip", 2)
+            .withPublishedBackup("following.zip", 2, 300)
+        assertEquals("following.zip", following.latestFile)
+        assertEquals(300L, following.lastSuccess)
+        assertEquals(verified.retiredFiles + "next.zip", following.retiredFiles)
+    }
+
+    @Test
+    fun `staging rejects a changed configuration or using the current good file`() {
+        val state = AutoBackupState(
+            config = AutoBackupConfig(revision = 2),
+            latestFile = "good.zip",
+            pendingFile = "good.zip",
+        )
+        expectFailure { state.withStagedBackup("new.zip", 1) }
+        expectFailure { state.withStagedBackup("good.zip", 2) }
+        val staged = state.withStagedBackup("new.zip", 2)
+        assertEquals("good.zip", staged.latestFile)
+        assertTrue(staged.retiredFiles.isEmpty())
+    }
+
+    @Test
     fun `changing config mid backup prevents publication and retains old success and file`() {
         val state = AutoBackupState(
             config = AutoBackupConfig(revision = 3), latestFile = "old.zip", pendingFile = "candidate.zip",

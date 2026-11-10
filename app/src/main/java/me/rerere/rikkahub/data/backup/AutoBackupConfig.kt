@@ -40,6 +40,17 @@ fun nextAutoBackupAt(now: Instant, lastSuccess: Long, config: AutoBackupConfig, 
         .atTime(config.hour, config.minute).atZone(zone).toInstant() else next
 }
 
+/** Preserve the cleanup record for an abandoned candidate without blocking the next write. */
+internal fun AutoBackupState.withStagedBackup(uri: String, expectedRevision: Long): AutoBackupState {
+    check(config.revision == expectedRevision) { "备份设置已变更，请重新备份" }
+    check(uri.isNotBlank() && uri != latestFile) { "备份临时文件无效" }
+    val abandoned = pendingFile.takeIf { it.isNotBlank() && it != latestFile && it != uri }
+    return copy(
+        pendingFile = uri,
+        retiredFiles = if (abandoned == null) retiredFiles else retiredFiles + abandoned,
+    )
+}
+
 /** The old file only becomes eligible for cleanup after a verified candidate is durably published. */
 internal fun AutoBackupState.withPublishedBackup(uri: String, expectedRevision: Long, time: Long): AutoBackupState {
     check(config.revision == expectedRevision) { "备份设置已变更，请重新备份" }

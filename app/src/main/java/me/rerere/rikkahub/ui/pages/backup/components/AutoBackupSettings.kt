@@ -48,7 +48,7 @@ internal fun AutoBackupSettings(vm: BackupVM) {
         CardGroup {
             item(
                 headlineContent = { Text("定期保存本地备份") },
-                supportingContent = { Text("与本地导出格式相同，包含聊天、设置、附件及插件，只保留一份最新备份。") },
+                supportingContent = { Text("与本地导出格式相同，包含聊天、设置、附件及插件。") },
                 trailingContent = {
                     Switch(
                         checked = config.enabled,
@@ -87,7 +87,7 @@ internal fun AutoBackupSettings(vm: BackupVM) {
             }
         }
         Text(
-            "默认凌晨 3 点，系统省电限制可能延后。新备份写入并校验成功后才清理旧备份，失败时保留旧备份。",
+            "默认凌晨 3 点，系统省电限制可能延后。新备份通过校验后再尝试清理旧文件，备份失败时保留上一份。",
             style = MaterialTheme.typography.bodySmall,
         )
         if (state.lastSuccess > 0) {
@@ -105,6 +105,13 @@ internal fun AutoBackupSettings(vm: BackupVM) {
         if (state.error.isNotBlank()) Text(
             state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
         )
+        if (!running && state.retiredFiles.isNotEmpty()) {
+            Text(
+                "有 ${state.retiredFiles.size} 份旧文件待清理，应用会自动重试。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         if (running) LinearProgressIndicator(Modifier.fillMaxWidth())
         Button(
             onClick = vm::runAutoBackupNow,

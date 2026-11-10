@@ -43,8 +43,18 @@ class AutoBackupStore(context: Context) {
         }
     }
 
-    suspend fun pending(uri: String) { data.edit { it[pending] = uri } }
-    suspend fun clearPending() { data.edit { it.remove(pending) } }
+    suspend fun stage(uri: String, expectedRevision: Long) {
+        data.edit {
+            val next = read(it).withStagedBackup(uri, expectedRevision)
+            it[pending] = next.pendingFile
+            it[retired] = next.retiredFiles
+        }
+    }
+
+    suspend fun clearPending(uri: String) {
+        data.edit { if (it[pending] == uri) it.remove(pending) }
+    }
+
     suspend fun error(message: String) { data.edit { it[error] = message } }
     suspend fun retiredRemoved(uri: String) { data.edit { it[retired] = it[retired].orEmpty() - uri } }
 
@@ -66,7 +76,8 @@ class AutoBackupStore(context: Context) {
         ),
         lastSuccess = p[lastSuccess] ?: 0,
         latestFile = p[latest].orEmpty(), pendingFile = p[pending].orEmpty(),
-        retiredFiles = p[retired].orEmpty(), error = p[error].orEmpty(),
+        retiredFiles = p[retired].orEmpty(),
+        error = p[error].orEmpty().takeUnless { it in legacyCleanupErrors }.orEmpty(),
     )
 
     private companion object {
@@ -81,5 +92,10 @@ class AutoBackupStore(context: Context) {
         val pending = stringPreferencesKey("pending")
         val retired = stringSetPreferencesKey("retired")
         val error = stringPreferencesKey("error")
+        // Upgrades surface these as cleanup notices based on the tracked files.
+        val legacyCleanupErrors = setOf(
+            "旧自动备份暂时无法清理，请检查保存文件夹，或选择另一个备份文件夹",
+            "新备份已保存，但旧备份未能清理；下次将重试",
+        )
     }
 }
