@@ -804,28 +804,30 @@ fun ChatInput(
                     dismissExpand()
                 }
                 if (expand == ExpandState.Files) {
+                    val panelShape = RoundedCornerShape(20.dp)
+                    val useMaterial = inputMaterialStyle != UiMaterialStyle.ORIGINAL
+                    val blur = settings.displaySetting.enableBlurEffect && !scrollCaptureInProgress
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(panelShape)
                             .then(
-                                if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                                    state = hazeState,
-                                    style = HazeMaterials.ultraThin(),
-                                ) {
-                                    blurEnabled = !scrollCaptureInProgress
+                                when {
+                                    useMaterial -> Modifier.themeMaterial(
+                                        shape = panelShape,
+                                        tint = inputTint,
+                                        role = MaterialRole.INPUT,
+                                    )
+                                    blur -> Modifier.hazeEffect(
+                                        state = hazeState,
+                                        style = HazeMaterials.ultraThin(),
+                                    )
+                                    else -> Modifier
                                 }
-                                else Modifier
-                        ),
-                        shape = RoundedCornerShape(20.dp),
+                            ),
+                        shape = panelShape,
                         tonalElevation = 0.dp,
-                        color = if (
-                            settings.displaySetting.enableBlurEffect && !scrollCaptureInProgress
-                        ) {
-                            Color.Transparent
-                        } else {
-                            hazeTintColor
-                        },
+                        color = if (useMaterial || blur) Color.Transparent else hazeTintColor,
                     ) {
                         FilesPicker(
                             conversation = conversation,
