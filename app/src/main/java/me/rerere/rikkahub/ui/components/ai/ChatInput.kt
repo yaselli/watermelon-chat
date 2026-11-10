@@ -13,7 +13,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -793,84 +792,77 @@ fun ChatInput(
                 }
             }
 
-            // Expanded content
-            Box(
-                modifier = Modifier
-                    .animateContentSize()
-                    .fillMaxWidth()
-            ) {
-                BackHandler(
-                    enabled = expand != ExpandState.Collapsed) {
-                    dismissExpand()
-                }
-                if (expand == ExpandState.Files) {
-                    val panelShape = RoundedCornerShape(20.dp)
-                    val useMaterial = inputMaterialStyle != UiMaterialStyle.ORIGINAL
-                    val blur = settings.displaySetting.enableBlurEffect && !scrollCaptureInProgress
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(panelShape)
-                            .then(
-                                when {
-                                    useMaterial -> Modifier.themeMaterial(
-                                        shape = panelShape,
-                                        tint = inputTint,
-                                        role = MaterialRole.INPUT,
-                                    )
-                                    blur -> Modifier.hazeEffect(
-                                        state = hazeState,
-                                        style = HazeMaterials.ultraThin(),
-                                    )
-                                    else -> Modifier
-                                }
-                            ),
-                        shape = panelShape,
-                        tonalElevation = 0.dp,
-                        color = if (useMaterial || blur) Color.Transparent else hazeTintColor,
-                    ) {
-                        FilesPicker(
-                            conversation = conversation,
-                            state = state,
-                            assistant = assistant,
-                            mcpManager = mcpManager,
-                            onConversationSettings = {
+            BackHandler(enabled = expand != ExpandState.Collapsed) {
+                dismissExpand()
+            }
+            ChatAttachmentPanel(expanded = expand == ExpandState.Files) {
+                FilesPicker(
+                    conversation = conversation,
+                    state = state,
+                    assistant = assistant,
+                    mcpManager = mcpManager,
+                    onConversationSettings = {
+                        dismissExpand()
+                        onConversationSettings()
+                    },
+                    conversationSettingsEnabled = !loading,
+                    onSharedMusic = { dismissExpand()
+                        onSharedMusic() },
+                    onCompressContext = onCompressContext,
+                    onUpdateAssistant = onUpdateAssistant,
+                    showInjectionSheet = showInjectionSheet,
+                    onShowInjectionSheetChange = { showInjectionSheet = it },
+                    showCompressDialog = showCompressDialog,
+                    onShowCompressDialogChange = { showCompressDialog = it },
+                    onDismiss = { dismissExpand() },
+                    onTakePic = onLaunchCamera,
+                    onPickImage = { imagePickerLauncher.launch("image/*") },
+                    onPickVideo = { videoPickerLauncher.launch("video/*") },
+                    onPickAudio = { audioPickerLauncher.launch("audio/*") },
+                    onRecordAudio = {
+                        when {
+                            isVoiceCallActive || asrState.status !in listOf(ASRStatus.Idle, ASRStatus.Error) ->
+                                toaster.show("请先结束当前通话或语音识别", type = ToastType.Error)
+                            !rawAudioSupported -> toaster.show(
+                                "请选择支持音频输入的 Gemini 或 OpenAI Chat Completions 模型",
+                                type = ToastType.Error,
+                            )
+                            !asrPermission.allRequiredPermissionsGranted -> asrPermission.requestPermissions()
+                            else -> {
                                 dismissExpand()
-                                onConversationSettings()
-                            },
-                            conversationSettingsEnabled = !loading,
-                            onSharedMusic = { dismissExpand()
-                                onSharedMusic() },
-                            onCompressContext = onCompressContext,
-                            onUpdateAssistant = onUpdateAssistant,
-                            showInjectionSheet = showInjectionSheet,
-                            onShowInjectionSheetChange = { showInjectionSheet = it },
-                            showCompressDialog = showCompressDialog,
-                            onShowCompressDialogChange = { showCompressDialog = it },
-                            onDismiss = { dismissExpand() },
-                            onTakePic = onLaunchCamera,
-                            onPickImage = { imagePickerLauncher.launch("image/*") },
-                            onPickVideo = { videoPickerLauncher.launch("video/*") },
-                            onPickAudio = { audioPickerLauncher.launch("audio/*") },
-                            onRecordAudio = {
-                                when {
-                                    isVoiceCallActive || asrState.status !in listOf(ASRStatus.Idle, ASRStatus.Error) ->
-                                        toaster.show("请先结束当前通话或语音识别", type = ToastType.Error)
-                                    !rawAudioSupported -> toaster.show(
-                                        "请选择支持音频输入的 Gemini 或 OpenAI Chat Completions 模型",
-                                        type = ToastType.Error,
-                                    )
-                                    !asrPermission.allRequiredPermissionsGranted -> asrPermission.requestPermissions()
-                                    else -> {
-                                        dismissExpand()
-                                        showRawRecording = true
-                                    }
-                                }
-                            },
-                            onPickFile = { filePickerLauncher.launch(arrayOf("*/*")) },
-                        )
-                    }
-                }
+                                showRawRecording = true
+                            }
+                        }
+                    },
+                    onPickFile = { filePickerLauncher.launch(arrayOf("*/*")) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ChatAttachmentPanel(expanded: Boolean, content: @Composable () -> Unit) {
+    // Keep the same bottom spacing when closed, without animating an empty panel.
+    Box(Modifier.fillMaxWidth()) {
+        if (!expanded) return@Box
+        val shape = RoundedCornerShape(20.dp)
+        val color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 1f)
+        // A fixed fill keeps messages from showing through while the composer moves.
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = shape,
+            color = color,
+        ) {
+            Box(
+                Modifier.fillMaxWidth().themeMaterial(
+                    shape = shape,
+                    tint = color,
+                    role = MaterialRole.INPUT,
+                    drawFill = false,
+                )
+            ) {
+                content()
             }
         }
     }

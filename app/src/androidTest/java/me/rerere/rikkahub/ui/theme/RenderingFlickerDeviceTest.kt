@@ -7,8 +7,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -29,6 +33,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
@@ -45,6 +50,7 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.DisplaySetting
 import me.rerere.rikkahub.data.datastore.ThemeMaterialSetting
 import me.rerere.rikkahub.data.datastore.UiMaterialStyle
+import me.rerere.rikkahub.ui.components.ai.ChatAttachmentPanel
 import me.rerere.rikkahub.ui.components.message.BubbleSurface
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -149,6 +155,70 @@ class RenderingFlickerDeviceTest {
             }
         } finally {
             compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
+    fun attachmentPanelCoversChatImmediatelyAndLeavesNoGapWhenClosed() {
+        val wallpaper = Color(0xFF21416E)
+        var expanded by mutableStateOf(false)
+        var style by mutableStateOf(UiMaterialStyle.ORIGINAL)
+        var dark by mutableStateOf(false)
+        compose.setContent {
+            val scheme = if (dark) darkColorScheme() else lightColorScheme()
+            MaterialTheme(colorScheme = scheme.withThemeMaterial(ThemeMaterialSetting(style), dark)) {
+                CompositionLocalProvider(
+                    LocalThemeMaterial provides ThemeMaterialSetting(style),
+                    LocalDarkMode provides dark,
+                ) {
+                    MaterialBackdrop(background = {
+                        Box(Modifier.fillMaxSize().background(wallpaper))
+                    }) {
+                        Column(
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box(Modifier.fillMaxWidth().height(36.dp).testTag("composer"))
+                            ChatAttachmentPanel(expanded = expanded) {
+                                Box(Modifier.fillMaxWidth().height(144.dp).testTag("attachments")) {
+                                    Text("会话设置")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (material in UiMaterialStyle.entries) {
+            for (isDark in listOf(false, true)) {
+                compose.runOnIdle {
+                    style = material
+                    dark = isDark
+                }
+                val composer = compose.onNodeWithTag("composer")
+                val collapsedTop = composer.fetchSemanticsNode().boundsInRoot.top
+                compose.mainClock.autoAdvance = false
+                try {
+                    compose.runOnIdle { expanded = true }
+                    compose.mainClock.advanceTimeBy(32)
+                    val panel = compose.onNodeWithTag("attachments").fetchSemanticsNode().boundsInRoot
+                    val center = panel.center
+                    val openFrame = compose.onRoot().captureToImage().toPixelMap()
+                    val scheme = if (isDark) darkColorScheme() else lightColorScheme()
+                    assertColor(scheme.surfaceContainerLow, openFrame[center.x.toInt(), center.y.toInt()])
+                    compose.onNodeWithText("会话设置").assertExists()
+                    assertTrue(composer.fetchSemanticsNode().boundsInRoot.bottom < panel.top)
+
+                    compose.runOnIdle { expanded = false }
+                    compose.mainClock.advanceTimeBy(32)
+                    compose.onNodeWithTag("attachments").assertDoesNotExist()
+                    assertEquals(collapsedTop, composer.fetchSemanticsNode().boundsInRoot.top, 1f)
+                    val closedFrame = compose.onRoot().captureToImage().toPixelMap()
+                    assertColor(wallpaper, closedFrame[center.x.toInt(), center.y.toInt()])
+                } finally {
+                    compose.mainClock.autoAdvance = true
+                }
+            }
         }
     }
 
