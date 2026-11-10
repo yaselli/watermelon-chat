@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import java.io.FileNotFoundException
 import java.io.IOException
 
 class SafBackupFolder(private val context: Context) {
@@ -40,10 +41,46 @@ class SafBackupFolder(private val context: Context) {
         ?: throw IOException("无法读回校验备份文件")
 
     fun delete(uri: String) {
-        try {
-            check(DocumentsContract.deleteDocument(resolver, Uri.parse(uri))) { "未能清理旧备份" }
-        } catch (_: java.io.FileNotFoundException) {
-            // Already deleted by the user; no longer needs cleanup.
-        }
+        val document = Uri.parse(uri)
+        deleteTrackedBackup(
+            delete = { DocumentsContract.deleteDocument(resolver, document) },
+            confirmMissing = { isMissingFromBackupFolder(document) },
+        )
     }
+
+    private fun isMissingFromBackupFolder(document: Uri): Boolean {
+        if (!DocumentsContract.isTreeUri(document)) return false
+        val documentId = DocumentsContract.getDocumentId(document)
+        val folderId = DocumentsContract.getTreeDocumentId(document)
+        if (documentId == folderId) return false
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(document, folderId)
+        val idColumn = DocumentsContract.Document.COLUMN_DOCUMENT_ID
+        return resolver.query(children, arrayOf(idColumn), null, null, null)?.use { cursor ->
+            val extras = cursor.extras
+            // A provider can return a partial directory while loading or reporting an error.
+            if (extras.getBoolean(DocumentsContract.EXTRA_LOADING) ||
+                extras.containsKey(DocumentsContract.EXTRA_ERROR) ||
+                extras.containsKey(DocumentsContract.EXTRA_INFO)
+            ) return@use false
+            val index = cursor.getColumnIndexOrThrow(idColumn)
+            while (cursor.moveToNext()) {
+                val childId = cursor.getString(index)
+                if (childId == null || childId == documentId) return@use false
+            }
+            true
+        } ?: false
+    }
+}
+
+internal fun deleteTrackedBackup(delete: () -> Boolean, confirmMissing: () -> Boolean) {
+    val deleted = try {
+        delete()
+    } catch (_: FileNotFoundException) {
+        false
+    } catch (error: SecurityException) {
+        // A moved or missing document can fail the provider's tree-membership check.
+        if (confirmMissing()) return
+        throw error
+    }
+    if (!deleted && !confirmMissing()) throw IOException("未能清理自动备份文件")
 }

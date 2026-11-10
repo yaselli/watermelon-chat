@@ -4,6 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.OutputStream
 import java.nio.file.Files
@@ -53,6 +54,28 @@ class AutoBackupTest {
         for (config in listOf(AutoBackupConfig(intervalDays = 0), AutoBackupConfig(hour = 24),
             AutoBackupConfig(minute = 60), AutoBackupConfig(enabled = true))) {
             expectFailure { config.validate() }
+        }
+    }
+
+    @Test
+    fun `cleanup accepts a deleted file or a document confirmed absent`() {
+        deleteTrackedBackup(delete = { true }, confirmMissing = { error("Unneeded directory query") })
+        deleteTrackedBackup(delete = { false }, confirmMissing = { true })
+        deleteTrackedBackup(delete = { throw FileNotFoundException() }, confirmMissing = { true })
+        deleteTrackedBackup(delete = { throw SecurityException() }, confirmMissing = { true })
+    }
+
+    @Test
+    fun `cleanup keeps tracking files that still exist or cannot be confirmed absent`() {
+        expectFailure { deleteTrackedBackup(delete = { false }, confirmMissing = { false }) }
+        expectFailure {
+            deleteTrackedBackup(delete = { throw FileNotFoundException() }, confirmMissing = { false })
+        }
+        expectFailure {
+            deleteTrackedBackup(delete = { throw SecurityException() }, confirmMissing = { false })
+        }
+        expectFailure {
+            deleteTrackedBackup(delete = { false }, confirmMissing = { throw IOException("Unavailable") })
         }
     }
 

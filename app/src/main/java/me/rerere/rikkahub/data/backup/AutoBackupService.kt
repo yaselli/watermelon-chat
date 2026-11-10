@@ -36,7 +36,9 @@ class AutoBackupService(
             check(config.folder.isNotBlank()) { "请先选择备份文件夹" }
             folder.requireAccess(config.folder)
             cleanup()
-            check(store.current().retiredFiles.isEmpty()) { "旧备份尚未清理，请检查文件夹权限后重试" }
+            check(store.current().retiredFiles.isEmpty()) {
+                "旧自动备份暂时无法清理，请检查保存文件夹，或选择另一个备份文件夹"
+            }
             if (!force && state.lastSuccess > 0 && Instant.now().isBefore(
                 nextAutoBackupAt(Instant.now(), state.lastSuccess, config, ZoneId.systemDefault())
             )) return@withContext

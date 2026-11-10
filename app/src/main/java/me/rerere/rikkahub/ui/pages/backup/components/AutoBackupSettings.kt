@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.data.backup.AUTO_BACKUP_INTERVALS
+import me.rerere.rikkahub.data.backup.nextAutoBackupAt
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.pages.backup.BackupVM
 import java.time.Instant
@@ -89,11 +90,18 @@ internal fun AutoBackupSettings(vm: BackupVM) {
             "默认凌晨 3 点，系统省电限制可能延后。新备份写入并校验成功后才清理旧备份，失败时保留旧备份。",
             style = MaterialTheme.typography.bodySmall,
         )
-        if (state.lastSuccess > 0) Text(
-            "上次成功：" + DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
-                .format(Instant.ofEpochMilli(state.lastSuccess)),
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (state.lastSuccess > 0) {
+            val zone = ZoneId.systemDefault()
+            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone)
+            Text(
+                "上次成功：" + formatter.format(Instant.ofEpochMilli(state.lastSuccess)),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (config.enabled) {
+                val due = nextAutoBackupAt(Instant.now(), state.lastSuccess, config, zone)
+                Text("下次应备份：" + formatter.format(due), style = MaterialTheme.typography.bodySmall)
+            }
+        }
         if (state.error.isNotBlank()) Text(
             state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
         )
