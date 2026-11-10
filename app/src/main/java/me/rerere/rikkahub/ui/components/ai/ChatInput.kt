@@ -6,10 +6,6 @@
 
 package me.rerere.rikkahub.ui.components.ai
 
-import me.rerere.rikkahub.ui.theme.LocalDarkMode
-
-import me.rerere.rikkahub.ui.theme.glassSurface
-
 import androidx.compose.ui.platform.LocalResources
 import android.net.Uri
 import android.util.Log
@@ -17,12 +13,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.content.MediaType
@@ -54,11 +48,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.DropdownMenu
+import me.rerere.rikkahub.ui.theme.MaterialDropdownMenu as DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -108,7 +101,7 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
-import me.rerere.hugeicons.stroke.FullScreen
+import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Voice
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
@@ -118,7 +111,6 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.UiMaterialStyle
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
-import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
@@ -133,9 +125,7 @@ import me.rerere.rikkahub.ui.context.LocalASRState
 import me.rerere.rikkahub.ui.context.LocalCurrentAssistant
 import me.rerere.rikkahub.ui.context.LocalCurrentChatModel
 import me.rerere.rikkahub.ui.context.LocalDisplaySettings
-import me.rerere.rikkahub.ui.context.LocalProviders
 import me.rerere.rikkahub.ui.context.LocalQuickMessages
-import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.SoundEffectPlayer
@@ -144,6 +134,10 @@ import coil3.compose.AsyncImage
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
+import me.rerere.rikkahub.ui.theme.LocalThemeMaterial
+import me.rerere.rikkahub.ui.theme.MaterialRole
+import me.rerere.rikkahub.ui.theme.themeMaterial
+import me.rerere.rikkahub.ui.theme.inputMaterialTint
 
 enum class ExpandState {
     Collapsed, Files,
@@ -170,6 +164,8 @@ fun ChatInput(
     onStickerSend: (markdown: String) -> Unit,
     onVoiceMessage: ((url: String, duration: Long, transcript: String) -> Unit)? = null,
     autoStartVoice: Boolean = false,
+    onConversationSettings: () -> Unit = {},
+    onSharedMusic: () -> Unit = {},
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -181,13 +177,13 @@ fun ChatInput(
     fun sendMessage() {
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        if (loading) onCancelClick() else onSendClick()
+        if (loading && state.isEmpty()) onCancelClick() else onSendClick()
     }
 
     fun sendMessageWithoutAnswer() {
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        if (loading) onCancelClick() else onLongSendClick()
+        if (loading && state.isEmpty()) onCancelClick() else onLongSendClick()
     }
 
     var expand by remember { mutableStateOf(ExpandState.Collapsed) }
@@ -287,7 +283,7 @@ fun ChatInput(
     // Camera launcher
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
     var cameraOutputFile by remember { mutableStateOf<File?>(null) }
-    val (_, launchCameraCrop) = useCropLauncher(
+    val launchCameraCrop = useCropLauncher(
         onCroppedImageReady = { croppedUri ->
             state.addImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
             dismissExpand()
@@ -325,7 +321,7 @@ fun ChatInput(
 
     // Image picker launcher
     var preCropTempFile by remember { mutableStateOf<File?>(null) }
-    val (_, launchImageCrop) = useCropLauncher(
+    val launchImageCrop = useCropLauncher(
         onCroppedImageReady = { croppedUri ->
             state.addImages(filesManager.createChatFilesByContents(listOf(croppedUri)))
             dismissExpand()
@@ -521,12 +517,15 @@ fun ChatInput(
         )
     }
 
-    val inputMaterialStyle = settings.displaySetting.inputMaterialStyle
+    val inputMaterialStyle = LocalThemeMaterial.current.style
+    val inputTint = MaterialTheme.colorScheme.inputMaterialTint(
+        inputMaterialStyle,
+        settings.displaySetting.inputFieldColor?.let { it.toComposeColor() },
+    )
     val scrollCaptureInProgress = LocalScrollCaptureInProgress.current
 
     Surface(
-        color = Color.Transparent,
-    ) {
+        color = Color.Transparent) {
         Column(
             modifier = modifier
                 .imePadding()
@@ -550,16 +549,14 @@ fun ChatInput(
                     )
                     .clip(MaterialTheme.shapes.largeIncreased)
                     .then(
-                        if (inputMaterialStyle == UiMaterialStyle.LIQUID_GLASS) {
-                            Modifier.hazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.ultraThin(
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-                                ),
-                            ) {
-                                blurEnabled = !scrollCaptureInProgress
-                            }
-                        } else if (settings.displaySetting.enableBlurEffect) {
+                        if (inputMaterialStyle != UiMaterialStyle.ORIGINAL) {
+                            Modifier.themeMaterial(
+                                    shape = MaterialTheme.shapes.largeIncreased,
+                                    tint = inputTint,
+                                    role = MaterialRole.INPUT,
+                                    drawFill = inputBgFile == null
+                                )
+                            } else if (settings.displaySetting.enableBlurEffect) {
                             Modifier.hazeEffect(
                                 state = hazeState,
                                 style = HazeMaterials.ultraThin(containerColor = hazeTintColor)
@@ -568,54 +565,20 @@ fun ChatInput(
                             }
                         }
                         else Modifier
-                    )
-                    .then(
-                        if (inputMaterialStyle == UiMaterialStyle.FROSTED ||
-                            (inputMaterialStyle == UiMaterialStyle.LIQUID_GLASS && inputBgFile != null)
-                        ) {
-                            Modifier.border(
-                                1.dp,
-                                if (inputMaterialStyle == UiMaterialStyle.LIQUID_GLASS) {
-                                    Color.White.copy(alpha = 0.50f)
-                                } else {
-                                    Color.White.copy(alpha = 0.34f)
-                                },
-                                MaterialTheme.shapes.largeIncreased,
-                            )
-                        } else Modifier
                     ),
                 shape = MaterialTheme.shapes.largeIncreased,
                 tonalElevation = 0.dp,
                 // When background image is set, make surface transparent so image is visible
-                color = if (inputBgFile != null) Color.Transparent
-                    else if (inputMaterialStyle == UiMaterialStyle.LIQUID_GLASS) {
-                        if (scrollCaptureInProgress) {
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
-                        } else {
-                            Color.Transparent
-                        }
-                    }
-                    else if (inputMaterialStyle == UiMaterialStyle.FROSTED) {
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.74f)
-                    }
-                    else if (
+                color = if (inputBgFile != null ||
+                            inputMaterialStyle != UiMaterialStyle.ORIGINAL ||
+                            (
                         settings.displaySetting.enableBlurEffect && !scrollCaptureInProgress
-                    ) {
+                    )
+                    )
                         Color.Transparent
-                    }
                     else settings.displaySetting.inputFieldColor?.let { it.toComposeColor() } ?: hazeTintColor,
             ) {
-                // Keep custom background images in control of their own appearance.
-                Box(
-                    modifier = if (inputMaterialStyle == UiMaterialStyle.LIQUID_GLASS && inputBgFile == null) {
-                        Modifier.glassSurface(
-                            shape = MaterialTheme.shapes.largeIncreased,
-                            tint = MaterialTheme.colorScheme.surface,
-                            dark = LocalDarkMode.current,
-                            drawFill = false,
-                        )
-                    } else Modifier,
-                ) {
+                Box {
                     // Background image inside input area (matches content size exactly)
                     if (inputBgFile != null) {
                         AsyncImage(
@@ -689,6 +652,7 @@ fun ChatInput(
                                     },
                                     onUpdateSearchService = onUpdateSearchService,
                                     model = chatModel,
+                                    onUpdateModel = onUpdateChatModel,
                                     modifier = Modifier.size(40.dp),
                                 )
 
@@ -711,8 +675,8 @@ fun ChatInput(
                                     onClick = {
                                         dismissExpand()
                                         showStickerPicker = true
-                                    },
-                                ) {
+                                    }
+                            ) {
                                     Text(
                                         text = "🙂",
                                         style = MaterialTheme.typography.titleMedium,
@@ -791,12 +755,12 @@ fun ChatInput(
                                             )
                                     ) {
                                         val containerColor = when {
-                                            loading -> MaterialTheme.colorScheme.errorContainer
+                                            loading && state.isEmpty() -> MaterialTheme.colorScheme.errorContainer
                                             state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh
                                             else -> MaterialTheme.colorScheme.primary
                                         }
                                         val contentColor = when {
-                                            loading -> MaterialTheme.colorScheme.onErrorContainer
+                                            loading && state.isEmpty() -> MaterialTheme.colorScheme.onErrorContainer
                                             state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                             else -> MaterialTheme.colorScheme.onPrimary
                                         }
@@ -805,7 +769,7 @@ fun ChatInput(
                                             shape = CircleShape,
                                             color = containerColor,
                                             content = {})
-                                        if (loading) {
+                                        if (loading && state.isEmpty()) {
                                             KeepScreenOn()
                                             Icon(
                                                 imageVector = HugeIcons.Cancel01,
@@ -828,76 +792,77 @@ fun ChatInput(
                 }
             }
 
-            // Expanded content
+            BackHandler(enabled = expand != ExpandState.Collapsed) {
+                dismissExpand()
+            }
+            ChatAttachmentPanel(expanded = expand == ExpandState.Files) {
+                FilesPicker(
+                    conversation = conversation,
+                    state = state,
+                    assistant = assistant,
+                    mcpManager = mcpManager,
+                    onConversationSettings = {
+                        dismissExpand()
+                        onConversationSettings()
+                    },
+                    conversationSettingsEnabled = !loading,
+                    onSharedMusic = { dismissExpand()
+                        onSharedMusic() },
+                    onCompressContext = onCompressContext,
+                    onUpdateAssistant = onUpdateAssistant,
+                    showInjectionSheet = showInjectionSheet,
+                    onShowInjectionSheetChange = { showInjectionSheet = it },
+                    showCompressDialog = showCompressDialog,
+                    onShowCompressDialogChange = { showCompressDialog = it },
+                    onDismiss = { dismissExpand() },
+                    onTakePic = onLaunchCamera,
+                    onPickImage = { imagePickerLauncher.launch("image/*") },
+                    onPickVideo = { videoPickerLauncher.launch("video/*") },
+                    onPickAudio = { audioPickerLauncher.launch("audio/*") },
+                    onRecordAudio = {
+                        when {
+                            isVoiceCallActive || asrState.status !in listOf(ASRStatus.Idle, ASRStatus.Error) ->
+                                toaster.show("请先结束当前通话或语音识别", type = ToastType.Error)
+                            !rawAudioSupported -> toaster.show(
+                                "请选择支持音频输入的 Gemini 或 OpenAI Chat Completions 模型",
+                                type = ToastType.Error,
+                            )
+                            !asrPermission.allRequiredPermissionsGranted -> asrPermission.requestPermissions()
+                            else -> {
+                                dismissExpand()
+                                showRawRecording = true
+                            }
+                        }
+                    },
+                    onPickFile = { filePickerLauncher.launch(arrayOf("*/*")) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ChatAttachmentPanel(expanded: Boolean, content: @Composable () -> Unit) {
+    // Keep the same bottom spacing when closed, without animating an empty panel.
+    Box(Modifier.fillMaxWidth()) {
+        if (!expanded) return@Box
+        val shape = RoundedCornerShape(20.dp)
+        val color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 1f)
+        // A fixed fill keeps messages from showing through while the composer moves.
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = shape,
+            color = color,
+        ) {
             Box(
-                modifier = Modifier
-                    .animateContentSize()
-                    .fillMaxWidth()
+                Modifier.fillMaxWidth().themeMaterial(
+                    shape = shape,
+                    tint = color,
+                    role = MaterialRole.INPUT,
+                    drawFill = false,
+                )
             ) {
-                BackHandler(
-                    enabled = expand != ExpandState.Collapsed,
-                ) {
-                    dismissExpand()
-                }
-                if (expand == ExpandState.Files) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .then(
-                                if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                                    state = hazeState,
-                                    style = HazeMaterials.ultraThin(),
-                                ) {
-                                    blurEnabled = !scrollCaptureInProgress
-                                }
-                                else Modifier
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        tonalElevation = 0.dp,
-                        color = if (
-                            settings.displaySetting.enableBlurEffect && !scrollCaptureInProgress
-                        ) {
-                            Color.Transparent
-                        } else {
-                            hazeTintColor
-                        },
-                    ) {
-                        FilesPicker(
-                            conversation = conversation,
-                            state = state,
-                            assistant = assistant,
-                            mcpManager = mcpManager,
-                            onCompressContext = onCompressContext,
-                            onUpdateAssistant = onUpdateAssistant,
-                            showInjectionSheet = showInjectionSheet,
-                            onShowInjectionSheetChange = { showInjectionSheet = it },
-                            showCompressDialog = showCompressDialog,
-                            onShowCompressDialogChange = { showCompressDialog = it },
-                            onDismiss = { dismissExpand() },
-                            onTakePic = onLaunchCamera,
-                            onPickImage = { imagePickerLauncher.launch("image/*") },
-                            onPickVideo = { videoPickerLauncher.launch("video/*") },
-                            onPickAudio = { audioPickerLauncher.launch("audio/*") },
-                            onRecordAudio = {
-                                when {
-                                    isVoiceCallActive || asrState.status !in listOf(ASRStatus.Idle, ASRStatus.Error) ->
-                                        toaster.show("请先结束当前通话或语音识别", type = ToastType.Error)
-                                    !rawAudioSupported -> toaster.show(
-                                        "请选择支持音频输入的 Gemini 或 OpenAI Chat Completions 模型",
-                                        type = ToastType.Error,
-                                    )
-                                    !asrPermission.allRequiredPermissionsGranted -> asrPermission.requestPermissions()
-                                    else -> {
-                                        dismissExpand()
-                                        showRawRecording = true
-                                    }
-                                }
-                            },
-                            onPickFile = { filePickerLauncher.launch(arrayOf("*/*")) },
-                        )
-                    }
-                }
+                content()
             }
         }
     }
@@ -1024,8 +989,12 @@ private fun TextInputRow(
             colors = TextFieldDefaults.colors().copy(
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+                focusedContainerColor = if (LocalThemeMaterial.current.style == UiMaterialStyle.ORIGINAL) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+                } else Color.Transparent,
+                unfocusedContainerColor = if (LocalThemeMaterial.current.style == UiMaterialStyle.ORIGINAL) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+                } else Color.Transparent,
             ),
             trailingIcon = {
                 if (isFocused) {
@@ -1033,7 +1002,7 @@ private fun TextInputRow(
                         onClick = {
                             isFullScreen = !isFullScreen
                         }) {
-                        Icon(HugeIcons.FullScreen, null)
+                        Icon(HugeIcons.Fullscreen, null)
                     }
                 }
             },

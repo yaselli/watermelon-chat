@@ -22,14 +22,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Card
+import me.rerere.rikkahub.ui.theme.MaterialCard as Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
+import me.rerere.rikkahub.ui.theme.MaterialListItem as ListItem
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import me.rerere.rikkahub.ui.theme.MaterialModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -49,6 +51,7 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Alert01
 import me.rerere.hugeicons.stroke.Icon1stBracket
 import me.rerere.hugeicons.stroke.McpServer
+import me.rerere.rikkahub.data.ai.tools.ToolDiscoveryPolicy
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
@@ -171,6 +174,7 @@ fun McpPickerListItem(
     servers: List<McpServerConfig>,
     mcpManager: McpManager,
     modifier: Modifier = Modifier,
+    colors: ListItemColors = ListItemDefaults.colors(),
     onUpdateAssistant: (Assistant) -> Unit
 ) {
     var showMcpPicker by remember { mutableStateOf(false) }
@@ -183,6 +187,7 @@ fun McpPickerListItem(
     }
 
     ListItem(
+        colors = colors,
         leadingContent = {
             if (loading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -372,6 +377,24 @@ fun McpPicker(
                             }
                         }
                     )
+                }
+                if (assistant.toolDiscoveryEnabled && server.id in assistant.mcpServers) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("这组工具完整常驻", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        val resident = ToolDiscoveryPolicy.residentServers(assistant, servers)
+                        Switch(
+                            checked = server.id in resident,
+                            onCheckedChange = { enabled ->
+                                onUpdateAssistant(assistant.copy(
+                                    toolDiscoveryMcpServers = if (enabled) resident + server.id else resident - server.id,
+                                ))
+                            },
+                        )
+                    }
                 }
             }
         }

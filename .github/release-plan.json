@@ -1,0 +1,14 @@
+{
+  "version": "2.3.8",
+  "versionCode": 173,
+  "testedCommit": "934599fc99c5d2813ee98e2902f16a9ea3c5eeca",
+  "channels": [
+    "release",
+    "debug"
+  ],
+  "notes": "docs/releases/2.3.8.md",
+  "verifiedRuns": {
+    "release": 0,
+    "debug": 0
+  }
+}
