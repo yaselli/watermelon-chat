@@ -1,7 +1,7 @@
 {
   "version": "2.3.7",
   "versionCode": 172,
-  "testedCommit": "65c283316fc28dd70f1dc79d21f2ada228f63119",
+  "testedCommit": "f3bbceb279f6fb48c627f0ce8372c64e5cebb9be",
   "channels": [
     "release",
     "debug"
