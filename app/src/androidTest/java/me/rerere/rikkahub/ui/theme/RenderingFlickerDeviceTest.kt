@@ -10,12 +10,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -37,6 +41,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -52,7 +57,9 @@ import me.rerere.rikkahub.data.datastore.ThemeMaterialSetting
 import me.rerere.rikkahub.data.datastore.UiMaterialStyle
 import me.rerere.rikkahub.ui.components.ai.ChatAttachmentPanel
 import me.rerere.rikkahub.ui.components.message.BubbleSurface
+import me.rerere.rikkahub.ui.pages.chat.FollowStreamingChat
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -220,6 +227,52 @@ class RenderingFlickerDeviceTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun streamingChatFollowsChangingReplyHeightOnlyWhileAtTheBottom() {
+        var replyHeight by mutableStateOf(48.dp)
+        var loading by mutableStateOf(false)
+        val historyCount = 24
+        val bottomIndex = historyCount + 1
+        lateinit var list: LazyListState
+        compose.setContent {
+            list = rememberLazyListState(initialFirstVisibleItemIndex = bottomIndex)
+            FollowStreamingChat(list, loading)
+            LazyColumn(
+                state = list,
+                contentPadding = PaddingValues(bottom = 72.dp),
+                modifier = Modifier.fillMaxSize().testTag("streaming-list"),
+            ) {
+                items(historyCount) { index ->
+                    Text("Previous message $index", Modifier.height(64.dp))
+                }
+                item(key = "reply") {
+                    Text("Current reply", Modifier.height(replyHeight))
+                }
+                item(key = "bottom") { Box(Modifier.height(5.dp)) }
+            }
+        }
+        compose.runOnIdle { assertFalse(list.canScrollForward) }
+        for (height in listOf(160.dp, 80.dp, 240.dp)) {
+            compose.runOnIdle {
+                loading = true
+                replyHeight = height
+            }
+            compose.runOnIdle { assertFalse("The reply moved below the viewport", list.canScrollForward) }
+        }
+
+        val chat = compose.onNodeWithTag("streaming-list")
+        chat.performScrollToIndex(4)
+        compose.runOnIdle {
+            assertEquals(4, list.firstVisibleItemIndex)
+            replyHeight = 300.dp
+        }
+        compose.runOnIdle { assertEquals("Reading history must not jump to the bottom", 4, list.firstVisibleItemIndex) }
+
+        chat.performScrollToIndex(bottomIndex)
+        compose.runOnIdle { replyHeight = 360.dp }
+        compose.runOnIdle { assertFalse("Following did not resume at the bottom", list.canScrollForward) }
     }
 
     @Test

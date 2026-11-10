@@ -44,7 +44,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -116,10 +115,8 @@ import me.rerere.rikkahub.ui.components.ui.RabbitLoadingIndicator
 import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
 import me.rerere.rikkahub.utils.plus
-import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 
-private const val TAG = "ChatList"
 private const val LoadingIndicatorKey = "LoadingIndicator"
 private const val ScrollBottomKey = "ScrollBottomKey"
 
@@ -236,9 +233,7 @@ private fun ChatListNormal(
     onAvatarInteraction: ((UIMessage) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
-    val loadingState by rememberUpdatedState(loading)
     var isRecentScroll by remember { mutableStateOf(false) }
-    val conversationUpdated by rememberUpdatedState(conversation)
     val density = LocalDensity.current
     val activity = LocalActivity.current as? me.rerere.rikkahub.RouteActivity
 
@@ -258,15 +253,6 @@ private fun ChatListNormal(
         onDispose {
             activity?.volumeKeyListeners?.remove(listener)
         }
-    }
-
-    fun List<LazyListItemInfo>.isAtBottom(): Boolean {
-        val lastItem = lastOrNull() ?: return false
-        val inputBarHeight = with(density) { innerPadding.calculateBottomPadding().toPx() }
-        val lastPos = lastItem.offset + lastItem.size
-        val inputPos = (state.layoutInfo.viewportEndOffset - inputBarHeight.roundToInt())
-        // println("lastPos = $lastPos, inputPos = $inputPos  | ${lastPos <= inputPos - 8}")
-        return lastPos <= inputPos - 8
     }
 
     // 聊天选择
@@ -291,19 +277,8 @@ private fun ChatListNormal(
         modifier = Modifier
             .fillMaxSize(),
     ) {
-        // 自动滚动到底部
         if (settings.displaySetting.enableAutoScroll) {
-            LaunchedEffect(state) {
-                snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { visibleItemsInfo ->
-                    // println("is bottom = ${visibleItemsInfo.isAtBottom()}, scroll = ${state.isScrollInProgress}, can_scroll = ${state.canScrollForward}, loading = $loading")
-                    if (!state.isScrollInProgress && loadingState) {
-                        if (visibleItemsInfo.isAtBottom()) {
-                            state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
-                            // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
-                        }
-                    }
-                }
-            }
+            FollowStreamingChat(state, loading)
         }
 
         // 判断最近是否滚动
@@ -603,6 +578,48 @@ private fun ChatListNormal(
         }
     }
 }
+
+@Composable
+internal fun FollowStreamingChat(state: LazyListState, loading: Boolean) {
+    val streaming by rememberUpdatedState(loading)
+    LaunchedEffect(state) {
+        var following = false
+        var previous: ChatScrollFrame? = null
+        snapshotFlow {
+            ChatScrollFrame(
+                loading = streaming,
+                scrolling = state.isScrollInProgress,
+                atBottom = !state.canScrollForward,
+                firstIndex = state.firstVisibleItemIndex,
+                firstOffset = state.firstVisibleItemScrollOffset,
+                lastIndex = state.layoutInfo.totalItemsCount - 1,
+            )
+        }.collect { frame ->
+            // An instant jump to older messages may skip the scrolling flag entirely.
+            val movedBack = previous?.let { last ->
+                frame.firstIndex < last.firstIndex ||
+                    (frame.firstIndex == last.firstIndex && frame.firstOffset < last.firstOffset)
+            } == true
+            previous = frame
+            if (frame.atBottom) {
+                following = !frame.scrolling && frame.lastIndex >= 0
+            } else if (!frame.loading || frame.scrolling || movedBack) {
+                following = false
+            } else if (following && frame.lastIndex >= 0) {
+                state.requestScrollToItem(frame.lastIndex)
+            }
+        }
+    }
+}
+
+private data class ChatScrollFrame(
+    val loading: Boolean,
+    val scrolling: Boolean,
+    val atBottom: Boolean,
+    val firstIndex: Int,
+    val firstOffset: Int,
+    val lastIndex: Int,
+)
 
 /**
  * 提取包含搜索词的文本片段，确保匹配词在开头可见

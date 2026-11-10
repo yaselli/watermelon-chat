@@ -486,9 +486,9 @@ private fun MessagePartsBlock(
                 if (visibleSteps.isNotEmpty()) {
                     val isReasoningOnlyBlock = visibleSteps.fastAll { it is ThinkingStep.ReasoningStep }
                     ChainOfThought(
-                        modifier = Modifier.animateContentSize(),
                         steps = visibleSteps,
                         collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                        animateSizeChanges = !loading,
                     ) { step ->
                         when (step) {
                             is ThinkingStep.ReasoningStep -> {
