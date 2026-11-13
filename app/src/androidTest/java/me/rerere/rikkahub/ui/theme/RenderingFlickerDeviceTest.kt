@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,8 +32,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
@@ -51,6 +55,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import coil3.compose.AsyncImagePainter
 import java.io.File
+import kotlin.math.abs
 import kotlin.uuid.Uuid
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.DisplaySetting
@@ -73,7 +78,7 @@ class RenderingFlickerDeviceTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun streamingBubbleKeepsItsTextAndTintDuringResizeAndWallpaperRedraw() {
+    fun streamingBubbleKeepsItsTextAndMaterialDuringResizeAndWallpaperRedraw() {
         var lines by mutableStateOf(1)
         var wallpaper by mutableStateOf(Color(0xFF204F70))
         var style by mutableStateOf(UiMaterialStyle.FOG_GLASS)
@@ -114,8 +119,7 @@ class RenderingFlickerDeviceTest {
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         try {
-            for (material in
-                UiMaterialStyle.entries) {
+            for (material in UiMaterialStyle.entries) {
                 for (isDark in listOf(false, true)) {
                     compose.runOnIdle {
                         style = material
@@ -160,6 +164,52 @@ class RenderingFlickerDeviceTest {
         } finally {
             compose.mainClock.autoAdvance = true
         }
+    }
+
+    @Test
+    fun fogGlassBlursWallpaperUnderStreamingBubble() {
+        var blurEnabled by mutableStateOf(false)
+        compose.setContent {
+            MaterialTheme(colorScheme = lightColorScheme()) {
+                CompositionLocalProvider(
+                    LocalThemeMaterial provides ThemeMaterialSetting(UiMaterialStyle.FOG_GLASS),
+                    LocalMaterialBlurEnabled provides blurEnabled,
+                    LocalDarkMode provides false,
+                ) {
+                    MaterialBackdrop(background = {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val stripe = 4.dp.toPx()
+                            for (index in 0..(size.width / stripe).toInt()) {
+                                drawRect(
+                                    color = if (index % 2 == 0) Color.Black else Color.White,
+                                    topLeft = Offset(index * stripe, 0f),
+                                    size = Size(stripe, size.height),
+                                )
+                            }
+                        }
+                    }) {
+                        Box(Modifier.padding(24.dp)) {
+                            BubbleSurface("", 20.dp, Color.White, false, 1f, streaming = true) {
+                                Box(Modifier.size(144.dp, 80.dp).testTag("blur-sample"))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        fun wallpaperContrast(): Float {
+            val bounds = compose.onNodeWithTag("blur-sample").fetchSemanticsNode().boundsInRoot
+            val pixels = compose.onRoot().captureToImage().toPixelMap()
+            val y = bounds.center.y.toInt()
+            val range = (bounds.left.toInt() + 12)..(bounds.right.toInt() - 12)
+            return range.sumOf { x ->
+                abs(pixels[x, y].luminance() - pixels[x - 1, y].luminance()).toDouble()
+            }.toFloat()
+        }
+        val sharp = wallpaperContrast()
+        assertTrue("Wallpaper stripes should be visible through the unblurred tint", sharp > 1f)
+        compose.runOnIdle { blurEnabled = true }
+        assertTrue("Fog glass should soften the wallpaper stripes", wallpaperContrast() < sharp / 2f)
     }
 
     @Test

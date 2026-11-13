@@ -781,15 +781,14 @@ internal fun BubbleSurface(
                 .clip(bubbleShape)
                 .then(clickModifier)
         ) {
-            // Bubble bounds move with the list and change as text streams. Use the
-            // material tint directly so a resized blur layer can't blank the fill.
+            // Sample the wallpaper behind the bubble on its own layer so the text
+            // can lay out and draw independently as the reply grows.
             val materialBackground = Modifier.matchParentSize().themeMaterial(
                 shape = bubbleShape,
                 tint = color,
                 role = MaterialRole.BUBBLE,
                 opacity = bubbleAlpha,
                 drawFill = !hasImage,
-                hazeState = null,
             )
             if (!hasImage) Box(materialBackground)
             if (hasImage) {
