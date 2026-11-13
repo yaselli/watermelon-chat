@@ -342,6 +342,13 @@ private fun ChatPageContent(
     val needsLiveHaze = displaySetting.enableBlurEffect
     var previewMode by rememberSaveable { mutableStateOf(false) }
     var showConversationSettings by rememberSaveable(conversation.id) { mutableStateOf(false) }
+    var pendingSentMessageId by remember(conversation.id) { mutableStateOf<Uuid?>(null) }
+    fun sendMessage(parts: List<UIMessagePart>, answer: Boolean = true) {
+        vm.handleMessageSend(parts, answer)?.let { messageId ->
+            pendingSentMessageId = messageId
+            previewMode = false
+        }
+    }
     var showSharedMusic by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var sharedMusicTab by rememberSaveable(conversation.id) { mutableIntStateOf(0) }
     if (showSharedMusic) me.rerere.rikkahub.ui.components.music.SharedMusicSheet(
@@ -481,10 +488,7 @@ private fun ChatPageContent(
                                     messageId = inputState.editingMessage!!,
                                 )
                             } else {
-                                vm.handleMessageSend(inputState.getContents())
-                                scope.launch {
-                                    chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                                }
+                                sendMessage(inputState.getContents())
                             }
                             inputState.clearInput()
                         },
@@ -493,19 +497,16 @@ private fun ChatPageContent(
                                 toaster.show("请先选择模型", type = ToastType.Error)
                                 return@ChatInput
                             }
-                            vm.handleMessageSend(
+                            sendMessage(
                                 listOf(UIMessagePart.Text(markdown))
                             )
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                            }
                         },
                         onVoiceMessage = { url, duration, transcript ->
                             if (currentChatModel == null) {
                                 toaster.show("请先选择模型", type = ToastType.Error)
                                 return@ChatInput
                             }
-                            vm.handleMessageSend(
+                            sendMessage(
                                 listOf(
                                     UIMessagePart.VoiceMessage(
                                         url = url,
@@ -514,9 +515,6 @@ private fun ChatPageContent(
                                     )
                                 )
                             )
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                            }
                         },
                         onLongSendClick = {
                             if (inputState.isEditing()) {
@@ -525,10 +523,7 @@ private fun ChatPageContent(
                                     messageId = inputState.editingMessage!!,
                                 )
                             } else {
-                                vm.handleMessageSend(content = inputState.getContents(), answer = false)
-                                scope.launch {
-                                    chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                                }
+                                sendMessage(inputState.getContents(), answer = false)
                             }
                             inputState.clearInput()
                         },
@@ -573,6 +568,10 @@ private fun ChatPageContent(
                     onReact = vm::toggleReaction,
                     onAvatarInteraction = vm::interactWithAvatar,
                     state = chatListState,
+                    pendingSentMessageId = pendingSentMessageId,
+                    onSentMessageShown = { shownId ->
+                        if (pendingSentMessageId == shownId) pendingSentMessageId = null
+                    },
                     loading = loadingJob != null && !blockedChatState.waiting,
                     processingStatus = if (blockedChatState.waiting) null else processingStatus,
                     previewMode = previewMode,

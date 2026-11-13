@@ -51,6 +51,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import coil3.compose.AsyncImagePainter
 import java.io.File
+import kotlin.uuid.Uuid
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.DisplaySetting
 import me.rerere.rikkahub.data.datastore.ThemeMaterialSetting
@@ -72,7 +73,7 @@ class RenderingFlickerDeviceTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun streamingBubbleKeepsItsTextAndGlassDuringResizeAndWallpaperRedraw() {
+    fun streamingBubbleKeepsItsTextAndTintDuringResizeAndWallpaperRedraw() {
         var lines by mutableStateOf(1)
         var wallpaper by mutableStateOf(Color(0xFF204F70))
         var style by mutableStateOf(UiMaterialStyle.FOG_GLASS)
@@ -90,7 +91,7 @@ class RenderingFlickerDeviceTest {
                         }
                     ) {
                         Box(Modifier.padding(24.dp).testTag("bubble")) {
-                            BubbleSurface("", 20.dp, scheme.surface, false, 1f) {
+                            BubbleSurface("", 20.dp, scheme.surface, false, 1f, streaming = true) {
                                 Box(
                                     Modifier.width(240.dp)
                                         .height((40 + lines * 16).dp)
@@ -114,11 +115,7 @@ class RenderingFlickerDeviceTest {
         compose.mainClock.autoAdvance = false
         try {
             for (material in
-                listOf(
-                    UiMaterialStyle.FOG_GLASS,
-                    UiMaterialStyle.FROSTED,
-                    UiMaterialStyle.LIQUID_GLASS,
-                )) {
+                UiMaterialStyle.entries) {
                 for (isDark in listOf(false, true)) {
                     compose.runOnIdle {
                         style = material
@@ -230,22 +227,34 @@ class RenderingFlickerDeviceTest {
     }
 
     @Test
-    fun streamingChatFollowsChangingReplyHeightOnlyWhileAtTheBottom() {
+    fun queuedSendScrollsWhenShownAndFollowingSurvivesViewportChanges() {
         var replyHeight by mutableStateOf(48.dp)
-        var loading by mutableStateOf(false)
+        var bottomPadding by mutableStateOf(72.dp)
+        val messageId = Uuid.random()
+        var pending by mutableStateOf<Uuid?>(null)
+        var sentVisible by mutableStateOf(false)
         val historyCount = 24
-        val bottomIndex = historyCount + 1
         lateinit var list: LazyListState
+        lateinit var pauseFollowing: () -> Unit
         compose.setContent {
-            list = rememberLazyListState(initialFirstVisibleItemIndex = bottomIndex)
-            FollowStreamingChat(list, loading)
+            list = rememberLazyListState(initialFirstVisibleItemIndex = 4)
+            pauseFollowing = FollowStreamingChat(
+                state = list,
+                enabled = true,
+                sentMessage = pending.takeIf { sentVisible },
+                bottomIndex = historyCount + if (sentVisible) 2 else 1,
+                onSentMessageShown = { pending = null },
+            )
             LazyColumn(
                 state = list,
-                contentPadding = PaddingValues(bottom = 72.dp),
+                contentPadding = PaddingValues(bottom = bottomPadding),
                 modifier = Modifier.fillMaxSize().testTag("streaming-list"),
             ) {
                 items(historyCount) { index ->
                     Text("Previous message $index", Modifier.height(64.dp))
+                }
+                if (sentVisible) {
+                    item(key = "sent") { Text("Just sent", Modifier.height(64.dp)) }
                 }
                 item(key = "reply") {
                     Text("Current reply", Modifier.height(replyHeight))
@@ -253,16 +262,26 @@ class RenderingFlickerDeviceTest {
                 item(key = "bottom") { Box(Modifier.height(5.dp)) }
             }
         }
-        compose.runOnIdle { assertFalse(list.canScrollForward) }
+        compose.runOnIdle { pending = messageId }
+        compose.runOnIdle {
+            assertEquals(4, list.firstVisibleItemIndex)
+            assertEquals(messageId, pending)
+            sentVisible = true
+        }
+        compose.runOnIdle {
+            assertEquals(null, pending)
+            assertFalse("The sent message did not reach the viewport", list.canScrollForward)
+        }
         for (height in listOf(160.dp, 80.dp, 240.dp)) {
             compose.runOnIdle {
-                loading = true
                 replyHeight = height
+                bottomPadding = if (height == 80.dp) 152.dp else 72.dp
             }
             compose.runOnIdle { assertFalse("The reply moved below the viewport", list.canScrollForward) }
         }
 
         val chat = compose.onNodeWithTag("streaming-list")
+        compose.runOnIdle { pauseFollowing() }
         chat.performScrollToIndex(4)
         compose.runOnIdle {
             assertEquals(4, list.firstVisibleItemIndex)
@@ -270,7 +289,7 @@ class RenderingFlickerDeviceTest {
         }
         compose.runOnIdle { assertEquals("Reading history must not jump to the bottom", 4, list.firstVisibleItemIndex) }
 
-        chat.performScrollToIndex(bottomIndex)
+        chat.performScrollToIndex(historyCount + 2)
         compose.runOnIdle { replyHeight = 360.dp }
         compose.runOnIdle { assertFalse("Following did not resume at the bottom", list.canScrollForward) }
     }

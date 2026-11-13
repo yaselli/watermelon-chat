@@ -544,6 +544,7 @@ private fun MessagePartsBlock(
                                 onClickCitation = handleClickCitation,
                                 avatar = bubbleAvatar,
                                 onLongClick = onBubbleLongClick,
+                                streaming = loading && role == MessageRole.ASSISTANT,
                             )
                         }
 
@@ -752,6 +753,7 @@ internal fun BubbleSurface(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     shape: Shape? = null,
+    streaming: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val hasImage = imagePath.isNotBlank() && java.io.File(imagePath).exists()
@@ -779,15 +781,15 @@ internal fun BubbleSurface(
                 .clip(bubbleShape)
                 .then(clickModifier)
         ) {
-            // Only the background needs a sampled/offscreen layer. Streamed text stays
-            // on the normal canvas, and layout follows each update without restarting
-            // a size tween (and resizing two nested render targets) every 50 ms.
+            // Bubble bounds move with the list and change as text streams. Use the
+            // material tint directly so a resized blur layer can't blank the fill.
             val materialBackground = Modifier.matchParentSize().themeMaterial(
                 shape = bubbleShape,
                 tint = color,
                 role = MaterialRole.BUBBLE,
                 opacity = bubbleAlpha,
                 drawFill = !hasImage,
+                hazeState = null,
             )
             if (!hasImage) Box(materialBackground)
             if (hasImage) {
@@ -812,7 +814,7 @@ internal fun BubbleSurface(
     } else if (hasImage) {
         Box(
             modifier = Modifier
-                .animateContentSize()
+                .then(if (streaming) Modifier else Modifier.animateContentSize())
                 .clip(bubbleShape)
                 .then(clickModifier)
         ) {
@@ -833,7 +835,7 @@ internal fun BubbleSurface(
         }
     } else {
         Surface(
-            modifier = Modifier.animateContentSize().then(clickModifier),
+            modifier = (if (streaming) Modifier else Modifier.animateContentSize()).then(clickModifier),
             shape = bubbleShape,
             color = color.copy(alpha = bubbleAlpha),
         ) {
