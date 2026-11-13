@@ -82,6 +82,7 @@ internal fun ChatMessageTextBubbles(
     onClickCitation: (String) -> Unit,
     avatar: @Composable () -> Unit,
     onLongClick: (() -> Unit)?,
+    streaming: Boolean = false,
 ) {
     val display = LocalDisplaySettings.current
     val everyday = display.chatDisplayMode == ChatDisplayMode.EVERYDAY
@@ -122,6 +123,7 @@ internal fun ChatMessageTextBubbles(
                                 onClick = if (isUser) onUserMessageClick else null,
                                 onLongClick = if (everyday) onLongClick else null,
                                 shape = if (everyday) chatBubbleShape(isUser) else null,
+                                streaming = streaming,
                             ) {
                                 MarkdownBlock(
                                     content =
@@ -144,7 +146,7 @@ internal fun ChatMessageTextBubbles(
                                         visual = true,
                                     ),
                                 onClickCitation = onClickCitation,
-                                modifier = Modifier.animateContentSize(),
+                                modifier = if (streaming) Modifier else Modifier.animateContentSize(),
                             )
                         }
                         MessageReactionBar(segment, reactions, onReact)

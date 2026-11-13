@@ -622,12 +622,13 @@ class ChatService(
     fun sendMessage(
         conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true,
         interaction: UIMessageAnnotation.AvatarInteraction? = null,
-    ) {
-        if (isChatBlocked(conversationId) || content.isEmptyInputMessage()) return
+    ): Uuid? {
+        if (isChatBlocked(conversationId) || content.isEmptyInputMessage()) return null
         val queue = getOrCreateSession(conversationId).messageQueue
         if (queue.state.value.messages.isEmpty()) queue.resume()
-        queue.enqueue(content, answer, interaction = interaction)
+        val queued = queue.enqueue(content, answer, interaction = interaction) ?: return null
         dispatchNextQueuedMessage(conversationId)
+        return queued.id
     }
 
     fun enqueueVoiceMessage(id: Uuid, text: String): QueuedMessage =
