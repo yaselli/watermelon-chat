@@ -87,7 +87,8 @@ internal fun ChatMessageTextBubbles(
     val display = LocalDisplaySettings.current
     val everyday = display.chatDisplayMode == ChatDisplayMode.EVERYDAY
     val isUser = role == MessageRole.USER
-    val split =
+    val softShadow = display.softShadowBubbles
+    val split = (!isUser && softShadow) ||
         (if (isUser) assistant?.splitUserBubbleByLine else assistant?.splitBubbleByLine) == true
     val segments =
         remember(text, display.chatDisplayMode, split) {
@@ -95,8 +96,10 @@ internal fun ChatMessageTextBubbles(
                 if (everyday) segments.filter { it.isNotBlank() } else segments
             }
         }
-    val showBubble = isUser || everyday || display.showAssistantBubble
+    val showBubble = softShadow || isUser || everyday || display.showAssistantBubble
     val scheme = MaterialTheme.colorScheme
+    val bubbleColor = (if (isUser) display.userBubbleColor else display.assistantBubbleColor)
+        ?.toComposeColor() ?: if (isUser) scheme.secondaryContainer else scheme.surfaceContainerHigh
     BubbleTextSelection(enabled = !everyday) {
         Column(
             verticalArrangement = Arrangement.spacedBy(if (everyday) 6.dp else 4.dp),
@@ -111,18 +114,13 @@ internal fun ChatMessageTextBubbles(
                                     if (isUser) display.userBubbleImagePath
                                     else display.assistantBubbleImagePath,
                                 cornerRadius = display.bubbleCornerRadius.dp,
-                                color =
-                                    if (isUser)
-                                        display.userBubbleColor?.toComposeColor()
-                                            ?: scheme.secondaryContainer
-                                    else
-                                        display.assistantBubbleColor?.toComposeColor()
-                                            ?: scheme.surfaceContainerHigh,
+                                color = bubbleColor,
+                                softShadow = softShadow,
                                 overlayEnabled = display.bubbleImageOverlayEnabled,
                                 bubbleAlpha = 1f - display.chatBubbleTransparency / 100f,
                                 onClick = if (isUser) onUserMessageClick else null,
                                 onLongClick = if (everyday) onLongClick else null,
-                                shape = if (everyday) chatBubbleShape(isUser) else null,
+                                shape = if (everyday && !softShadow) chatBubbleShape(isUser) else null,
                                 streaming = streaming,
                             ) {
                                 MarkdownBlock(

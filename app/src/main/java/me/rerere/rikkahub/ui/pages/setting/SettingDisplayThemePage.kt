@@ -219,6 +219,21 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                 }
             }
 
+            item {
+                CardGroup(modifier = Modifier.padding(horizontal = 8.dp), title = { Text("平面气泡") }) {
+                    item(
+                        headlineContent = { Text("柔影气泡") },
+                        supportingContent = { Text("文字与图片使用暖白圆角气泡和浅阴影，AI 分行回复逐条显示") },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.softShadowBubbles,
+                                onCheckedChange = { updateDisplaySetting(displaySetting.copy(softShadowBubbles = it)) },
+                            )
+                        },
+                    )
+                }
+            }
+
             if (displaySetting.themeMaterial.style == UiMaterialStyle.FOG_GLASS) {
                 item {
                     var transparency by

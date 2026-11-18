@@ -585,23 +585,26 @@ private fun MessagePartsBlock(
                         is UIMessagePart.Image -> {
                             val isImageLoading =
                                 part.url.isBlank() || part.url.matches(Regex("^data:image/[^;]*;base64,\\s*$"))
-                            if (isImageLoading) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .shimmer(isLoading = true)
-                                )
-                            } else {
-                                ZoomableAsyncImage(
-                                    model = part.url,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .height(72.dp)
-                                )
+                            val imageContent: @Composable () -> Unit = {
+                                if (isImageLoading) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(72.dp)
+                                            .clip(MaterialTheme.shapes.medium)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .shimmer(isLoading = true)
+                                    )
+                                } else {
+                                    ZoomableAsyncImage(
+                                        model = part.url,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .clip(MaterialTheme.shapes.medium)
+                                            .height(if (displaySettings.softShadowBubbles) 136.dp else 72.dp)
+                                    )
+                                }
                             }
+                            if (displaySettings.softShadowBubbles) SoftShadowBubble(content = imageContent) else imageContent()
                         }
 
                         is UIMessagePart.Document -> {
@@ -744,6 +747,24 @@ private fun MessagePartsBlock(
 }
 
 @Composable
+private fun SoftShadowBubble(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(13.dp)
+    val ink = Color(0xFF302D29)
+    Surface(
+        modifier = Modifier.shadow(3.dp, shape, clip = false).clip(shape).then(modifier),
+        shape = shape,
+        color = Color(0xFFFFFDFA),
+        contentColor = ink,
+    ) {
+        Box(Modifier.padding(horizontal = 9.dp, vertical = 6.dp)) {
+            ProvideTextStyle(LocalTextStyle.current.copy(color = ink, fontFamily = FontFamily.Serif)) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
 internal fun BubbleSurface(
     imagePath: String,
     cornerRadius: Dp,
@@ -754,6 +775,7 @@ internal fun BubbleSurface(
     onLongClick: (() -> Unit)? = null,
     shape: Shape? = null,
     streaming: Boolean = false,
+    softShadow: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val hasImage = imagePath.isNotBlank() && java.io.File(imagePath).exists()
@@ -765,7 +787,9 @@ internal fun BubbleSurface(
         else -> Modifier
     }
 
-    if (materialStyle != UiMaterialStyle.ORIGINAL) {
+    if (softShadow) {
+        SoftShadowBubble(clickModifier, content)
+    } else if (materialStyle != UiMaterialStyle.ORIGINAL) {
         Box(
             modifier = Modifier
                 .shadow(
