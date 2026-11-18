@@ -1,12 +1,12 @@
 {
-  "version": "2.3.9",
-  "versionCode": 174,
-  "testedCommit": "5fd8a9898b9d8ab490830eca21eeb0fa1d17a9c7",
+  "version": "2.3.10",
+  "versionCode": 175,
+  "testedCommit": "81d1e51476d6726178c4aaaa87cac07cdd8e2cd6",
   "channels": [
     "release",
     "debug"
   ],
-  "notes": "docs/releases/2.3.9.md",
+  "notes": "docs/releases/2.3.10.md",
   "verifiedRuns": {
     "release": 0,
     "debug": 0
