@@ -816,6 +816,7 @@ enum class VisualThemePalette {
     MIDNIGHT,
     APRICOT_CREAM,
     MIST_BLUE,
+    APRICOT_PAPER,
 }
 
 @Serializable

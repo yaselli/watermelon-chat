@@ -170,6 +170,7 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                         VisualThemePalette.ORIGINAL,
                         VisualThemePalette.SEA_SALT,
                         VisualThemePalette.APRICOT_CREAM,
+                        VisualThemePalette.APRICOT_PAPER,
                         VisualThemePalette.MIST_BLUE,
                     ).forEach { palette ->
                         item(
@@ -290,6 +291,7 @@ private fun VisualThemePalette.paletteTitle(): String = when (this) {
     VisualThemePalette.ORIGINAL -> "原始配色"
     VisualThemePalette.SEA_SALT -> "海盐"
     VisualThemePalette.APRICOT_CREAM -> "奶杏"
+    VisualThemePalette.APRICOT_PAPER -> "杏笺"
     VisualThemePalette.MIST_BLUE -> "雾蓝"
     VisualThemePalette.SAKURA_MIST -> "樱雾"
     VisualThemePalette.AURORA -> "极光"
@@ -300,6 +302,7 @@ private fun VisualThemePalette.paletteDescription(): String = when (this) {
     VisualThemePalette.ORIGINAL -> "使用应用原有主题配色"
     VisualThemePalette.SEA_SALT -> "清透、低饱和的海盐配色"
     VisualThemePalette.APRICOT_CREAM -> "奶油暖白与柔和杏色，支持浅色与深色"
+    VisualThemePalette.APRICOT_PAPER -> "燕麦灰、纸白与杏橘，夜间转为暖炭灰"
     VisualThemePalette.MIST_BLUE -> "清淡雾蓝与冰白，支持浅色与深色"
     else -> "跟随当前配色设置"
 }

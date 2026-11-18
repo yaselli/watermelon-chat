@@ -14,7 +14,7 @@ import org.junit.Test
 class VisualPaletteTest {
     @Test
     fun `new palettes remain readable in both color modes`() {
-        for (palette in listOf(VisualThemePalette.APRICOT_CREAM, VisualThemePalette.MIST_BLUE)) {
+        for (palette in listOf(VisualThemePalette.APRICOT_CREAM, VisualThemePalette.MIST_BLUE, VisualThemePalette.APRICOT_PAPER)) {
             for (dark in listOf(false, true)) {
                 val colors = lightColorScheme().withVisualPalette(palette, dark)
                 val pairs = listOf(
@@ -50,7 +50,7 @@ class VisualPaletteTest {
 
     @Test
     fun `new palette choices survive settings serialization without changing other options`() {
-        for (palette in listOf(VisualThemePalette.APRICOT_CREAM, VisualThemePalette.MIST_BLUE)) {
+        for (palette in listOf(VisualThemePalette.APRICOT_CREAM, VisualThemePalette.MIST_BLUE, VisualThemePalette.APRICOT_PAPER)) {
             val original = DisplaySetting(
                 visualThemePalette = palette,
                 enableGlassDrawer = true,
