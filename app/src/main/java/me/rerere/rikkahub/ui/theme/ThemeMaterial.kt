@@ -200,7 +200,7 @@ internal fun ColorScheme.withThemeMaterial(
     if (material.style == UiMaterialStyle.SOFT_SHADOW) {
         val paper = if (dark) Color(0xFF302D2A) else Color(0xFFFFFDFA)
         return copy(
-            background = (if (dark) Color(0xFF23211F) else Color(0xFFF5F4F2)).copy(alpha = 0f),
+            background = background.copy(alpha = 0f),
             surface = paper, surfaceBright = paper, surfaceDim = paper,
             surfaceContainerLowest = paper, surfaceContainerLow = paper, surfaceContainer = paper,
             surfaceContainerHigh = paper, surfaceContainerHighest = paper, surfaceVariant = paper,

@@ -259,7 +259,10 @@ class RenderingFlickerDeviceTest {
                     val center = panel.center
                     val openFrame = compose.onRoot().captureToImage().toPixelMap()
                     val scheme = if (isDark) darkColorScheme() else lightColorScheme()
-                    assertColor(scheme.surfaceContainerLow, openFrame[center.x.toInt(), center.y.toInt()])
+                    val expectedPanel = if (material == UiMaterialStyle.SOFT_SHADOW) {
+                        if (isDark) Color(0xFF302D2A) else Color(0xFFFFFDFA)
+                    } else scheme.surfaceContainerLow
+                    assertColor(expectedPanel, openFrame[center.x.toInt(), center.y.toInt()])
                     compose.onNodeWithText("会话设置").assertExists()
                     assertTrue(composer.fetchSemanticsNode().boundsInRoot.bottom < panel.top)
 
