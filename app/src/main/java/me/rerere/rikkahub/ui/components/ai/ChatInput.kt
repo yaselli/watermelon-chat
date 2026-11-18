@@ -540,7 +540,7 @@ fun ChatInput(
                     .then(
                         if (inputMaterialStyle != UiMaterialStyle.ORIGINAL) {
                             Modifier.shadow(
-                                elevation = 7.dp,
+                                elevation = if (inputMaterialStyle == UiMaterialStyle.SOFT_SHADOW) 3.dp else 7.dp,
                                 shape = MaterialTheme.shapes.largeIncreased,
                                 ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
                                 spotColor = Color.Black.copy(alpha = 0.10f),

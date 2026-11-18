@@ -297,7 +297,7 @@ class SettingsStore(
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
                 developerMode = preferences[DEVELOPER_MODE] == true,
-                displaySetting = JsonInstant.decodeFromString(preferences[DISPLAY_SETTING] ?: "{}"),
+                displaySetting = JsonInstant.decodeFromString<DisplaySetting>(preferences[DISPLAY_SETTING] ?: "{}").migrateSoftShadow(),
                 searchServices = preferences.getSecret(SEARCH_SERVICES)?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: listOf(SearchServiceOptions.DEFAULT),
@@ -827,6 +827,12 @@ data class AnniversaryEntry(
     /** true 表示未来倒数日；false 表示从开始日累计天数。 */
     val countdown: Boolean = false,
 )
+
+internal fun DisplaySetting.migrateSoftShadow(): DisplaySetting =
+    if (softShadowBubbles) copy(
+        softShadowBubbles = false,
+        themeMaterial = themeMaterial.copy(style = UiMaterialStyle.SOFT_SHADOW),
+    ) else this
 
 @Serializable
 data class DisplaySetting(

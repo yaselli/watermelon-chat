@@ -436,6 +436,7 @@ private fun MessagePartsBlock(
 
     // 消息输出HapticFeedback
     val hapticFeedback = LocalHapticFeedback.current
+    val softShadow = LocalThemeMaterial.current.style == UiMaterialStyle.SOFT_SHADOW
     val displaySettings = LocalDisplaySettings.current
     val everyday = displaySettings.chatDisplayMode == ChatDisplayMode.EVERYDAY
     val partsState by rememberUpdatedState(parts)
@@ -600,11 +601,11 @@ private fun MessagePartsBlock(
                                         contentDescription = null,
                                         modifier = Modifier
                                             .clip(MaterialTheme.shapes.medium)
-                                            .height(if (displaySettings.softShadowBubbles) 136.dp else 72.dp)
+                                            .height(if (softShadow) 136.dp else 72.dp)
                                     )
                                 }
                             }
-                            if (displaySettings.softShadowBubbles) SoftShadowBubble(content = imageContent) else imageContent()
+                            if (softShadow) SoftShadowBubble(content = imageContent) else imageContent()
                         }
 
                         is UIMessagePart.Document -> {
@@ -749,11 +750,11 @@ private fun MessagePartsBlock(
 @Composable
 private fun SoftShadowBubble(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val shape = RoundedCornerShape(13.dp)
-    val ink = Color(0xFF302D29)
+    val ink = MaterialTheme.colorScheme.onSurface
     Surface(
-        modifier = Modifier.shadow(3.dp, shape, clip = false).clip(shape).then(modifier),
+        modifier = Modifier.themeMaterial(shape, MaterialTheme.colorScheme.surface, MaterialRole.BUBBLE).then(modifier),
         shape = shape,
-        color = Color(0xFFFFFDFA),
+        color = Color.Transparent,
         contentColor = ink,
     ) {
         Box(Modifier.padding(horizontal = 9.dp, vertical = 6.dp)) {
@@ -775,7 +776,6 @@ internal fun BubbleSurface(
     onLongClick: (() -> Unit)? = null,
     shape: Shape? = null,
     streaming: Boolean = false,
-    softShadow: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val hasImage = imagePath.isNotBlank() && java.io.File(imagePath).exists()
@@ -787,7 +787,7 @@ internal fun BubbleSurface(
         else -> Modifier
     }
 
-    if (softShadow) {
+    if (materialStyle == UiMaterialStyle.SOFT_SHADOW) {
         SoftShadowBubble(clickModifier, content)
     } else if (materialStyle != UiMaterialStyle.ORIGINAL) {
         Box(

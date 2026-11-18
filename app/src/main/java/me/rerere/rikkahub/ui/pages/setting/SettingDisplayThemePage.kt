@@ -219,21 +219,6 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                 }
             }
 
-            item {
-                CardGroup(modifier = Modifier.padding(horizontal = 8.dp), title = { Text("平面气泡") }) {
-                    item(
-                        headlineContent = { Text("柔影气泡") },
-                        supportingContent = { Text("文字与图片使用暖白圆角气泡和浅阴影，AI 分行回复逐条显示") },
-                        trailingContent = {
-                            Switch(
-                                checked = displaySetting.softShadowBubbles,
-                                onCheckedChange = { updateDisplaySetting(displaySetting.copy(softShadowBubbles = it)) },
-                            )
-                        },
-                    )
-                }
-            }
-
             if (displaySetting.themeMaterial.style == UiMaterialStyle.FOG_GLASS) {
                 item {
                     var transparency by
@@ -286,6 +271,7 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
 }
 
 private fun UiMaterialStyle.materialTitle(): String = when (this) {
+    UiMaterialStyle.SOFT_SHADOW -> "柔影"
     UiMaterialStyle.ORIGINAL -> "原始"
     UiMaterialStyle.FOG_GLASS -> "毛玻璃"
         UiMaterialStyle.LIQUID_GLASS -> "水玻璃"
@@ -293,6 +279,7 @@ private fun UiMaterialStyle.materialTitle(): String = when (this) {
 }
 
 private fun UiMaterialStyle.materialDescription(): String = when (this) {
+    UiMaterialStyle.SOFT_SHADOW -> "暖色平面与柔和阴影，应用于聊天和全局界面"
     UiMaterialStyle.ORIGINAL -> "保留应用原有材质"
     UiMaterialStyle.FOG_GLASS -> "柔雾轻透，背景化成淡淡的颜色"
         UiMaterialStyle.LIQUID_GLASS -> "清透润亮，圆润亮边与柔和反光"

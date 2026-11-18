@@ -28,6 +28,7 @@ internal fun ThemeMaterialSetting.profile(
 ): ThemeMaterialProfile {
     val base =
         when (style) {
+            UiMaterialStyle.SOFT_SHADOW -> return ThemeMaterialProfile(1f, 0f, 0f, 0f, 0f, 3f)
             UiMaterialStyle.ORIGINAL -> ThemeMaterialProfile(1f, 0f, 0f, 0f, 0f, 0f)
             UiMaterialStyle.FOG_GLASS ->
                 ThemeMaterialProfile(

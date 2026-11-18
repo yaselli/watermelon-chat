@@ -8,6 +8,7 @@ enum class UiMaterialStyle {
     LIQUID_GLASS,
     FROSTED,
     FOG_GLASS,
+    SOFT_SHADOW,
 }
 
 /** Material and palette are independent. Larger transparency values mean less surface tint. */

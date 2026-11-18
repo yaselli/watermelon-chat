@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.rerere.ai.core.MessageRole
+import me.rerere.rikkahub.ui.theme.LocalThemeMaterial
+import me.rerere.rikkahub.data.datastore.UiMaterialStyle
 import me.rerere.rikkahub.data.datastore.ChatDisplayMode
 import me.rerere.rikkahub.data.interaction.MessageReaction
 import me.rerere.rikkahub.data.model.Assistant
@@ -87,7 +89,7 @@ internal fun ChatMessageTextBubbles(
     val display = LocalDisplaySettings.current
     val everyday = display.chatDisplayMode == ChatDisplayMode.EVERYDAY
     val isUser = role == MessageRole.USER
-    val softShadow = display.softShadowBubbles
+    val softShadow = LocalThemeMaterial.current.style == UiMaterialStyle.SOFT_SHADOW
     val split = (!isUser && softShadow) ||
         (if (isUser) assistant?.splitUserBubbleByLine else assistant?.splitBubbleByLine) == true
     val segments =
@@ -115,7 +117,6 @@ internal fun ChatMessageTextBubbles(
                                     else display.assistantBubbleImagePath,
                                 cornerRadius = display.bubbleCornerRadius.dp,
                                 color = bubbleColor,
-                                softShadow = softShadow,
                                 overlayEnabled = display.bubbleImageOverlayEnabled,
                                 bubbleAlpha = 1f - display.chatBubbleTransparency / 100f,
                                 onClick = if (isUser) onUserMessageClick else null,

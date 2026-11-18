@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -48,7 +49,7 @@ internal fun MaterialBackdrop(
     val state = rememberHazeState()
     val active =
         captureBackground && LocalThemeMaterial.current.style != UiMaterialStyle.ORIGINAL &&
-            LocalMaterialBlurEnabled.current
+            LocalThemeMaterial.current.style != UiMaterialStyle.SOFT_SHADOW && LocalMaterialBlurEnabled.current
     val capture = LocalScrollCaptureInProgress.current
     CompositionLocalProvider(
         LocalMaterialBackdrop provides if (active && !capture) state else null
@@ -94,6 +95,10 @@ internal fun Modifier.themeMaterial(
     if (material.style == UiMaterialStyle.ORIGINAL) return this
     val dark = LocalDarkMode.current
     val profile = material.profile(dark, role, LocalSoftDarkMode.current)
+    if (material.style == UiMaterialStyle.SOFT_SHADOW) {
+        val surface = if (role == MaterialRole.INPUT) this else shadow(profile.elevation.dp, shape, clip = false)
+        return surface.clip(shape).then(if (drawFill) Modifier.background(MaterialTheme.colorScheme.surface) else Modifier)
+    }
     val contextualOpacity = if (role == MaterialRole.DIALOG) 1f else LocalMaterialSurfaceOpacity.current
     val strength = (if (opacity.isFinite()) opacity.coerceIn(0f, 1f) else 1f) * contextualOpacity
     val capture = LocalScrollCaptureInProgress.current
@@ -192,6 +197,15 @@ internal fun ColorScheme.withThemeMaterial(
     dark: Boolean,
 ): ColorScheme {
     if (material.style == UiMaterialStyle.ORIGINAL) return this
+    if (material.style == UiMaterialStyle.SOFT_SHADOW) {
+        val paper = if (dark) Color(0xFF302D2A) else Color(0xFFFFFDFA)
+        return copy(
+            background = (if (dark) Color(0xFF23211F) else Color(0xFFF5F4F2)).copy(alpha = 0f),
+            surface = paper, surfaceBright = paper, surfaceDim = paper,
+            surfaceContainerLowest = paper, surfaceContainerLow = paper, surfaceContainer = paper,
+            surfaceContainerHigh = paper, surfaceContainerHighest = paper, surfaceVariant = paper,
+        )
+    }
     val card = material.profile(dark, MaterialRole.CARD).tintAlpha
     val modal = material.profile(dark, MaterialRole.DIALOG).tintAlpha
     return copy(

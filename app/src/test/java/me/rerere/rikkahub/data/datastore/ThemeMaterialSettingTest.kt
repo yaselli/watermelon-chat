@@ -37,6 +37,15 @@ class ThemeMaterialSettingTest {
     }
 
     @Test
+    fun legacyBubbleSelectionMigratesOnce() {
+        val migrated = DisplaySetting(softShadowBubbles = true).migrateSoftShadow()
+        assertEquals(UiMaterialStyle.SOFT_SHADOW, migrated.themeMaterial.style)
+        assertEquals(false, migrated.softShadowBubbles)
+        val switched = migrated.copy(themeMaterial = ThemeMaterialSetting(UiMaterialStyle.FROSTED))
+        assertEquals(switched, switched.migrateSoftShadow())
+    }
+
+    @Test
     fun `invalid imported transparency cannot reach renderer`() {
         listOf(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY).forEach {
             assertEquals(0.80f, ThemeMaterialSetting(fogTransparency = it).safeFogTransparency, 0f)
