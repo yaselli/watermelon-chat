@@ -216,7 +216,8 @@ private fun S3Config.isUsable(): Boolean =
     endpoint.isNotBlank() && accessKeyId.isNotBlank() && secretAccessKey.isNotBlank() && bucket.isNotBlank()
 
 private fun guessContentType(file: File): String =
-    URLConnection.guessContentTypeFromName(file.name) ?: "application/octet-stream"
+    file.extension.takeIf { ext -> ext.isNotEmpty() && ext.all { it.isLetterOrDigit() } }
+        ?.let { URLConnection.guessContentTypeFromName("file.${it.lowercase()}") } ?: "application/octet-stream"
 
 private fun File.sha256Hex(): String {
     val digest = MessageDigest.getInstance("SHA-256")
