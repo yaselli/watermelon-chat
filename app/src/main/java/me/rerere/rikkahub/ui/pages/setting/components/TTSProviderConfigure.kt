@@ -62,6 +62,7 @@ fun TTSProviderConfigure(
                         is TTSProviderSetting.Groq -> "Groq"
                         is TTSProviderSetting.XAI -> "xAI"
                         is TTSProviderSetting.MiMo -> "MiMo"
+                        is TTSProviderSetting.DeepSeek -> "DeepSeek"
                         is TTSProviderSetting.ElevenLabs -> "ElevenLabs"
                     },
                     onValueChange = {},
@@ -90,6 +91,7 @@ fun TTSProviderConfigure(
                                         TTSProviderSetting.Groq::class -> "Groq"
                                         TTSProviderSetting.XAI::class -> "xAI"
                                         TTSProviderSetting.MiMo::class -> "MiMo"
+                                        TTSProviderSetting.DeepSeek::class -> "DeepSeek"
                                         TTSProviderSetting.ElevenLabs::class -> "ElevenLabs"
                                         else -> providerClass.simpleName ?: "Unknown"
                                     }
@@ -133,6 +135,7 @@ fun TTSProviderConfigure(
                                         name = "xAI TTS"
                                     )
 
+                                    TTSProviderSetting.DeepSeek::class -> TTSProviderSetting.DeepSeek(id = setting.id)
                                     TTSProviderSetting.MiMo::class -> TTSProviderSetting.MiMo(
                                         id = setting.id,
                                         name = "MiMo TTS"
@@ -178,6 +181,7 @@ fun TTSProviderConfigure(
             is TTSProviderSetting.Groq -> GroqTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.XAI -> XAITTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.MiMo -> MiMoTTSConfiguration(setting, onValueChange)
+            is TTSProviderSetting.DeepSeek -> DeepSeekTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.ElevenLabs -> ElevenLabsTTSConfiguration(setting, onValueChange)
         }
     }
@@ -1102,4 +1106,11 @@ private fun ElevenLabsTTSConfiguration(
             label = stringResource(R.string.setting_tts_page_similarity_boost)
         )
     }
+}
+
+@Composable
+private fun DeepSeekTTSConfiguration(setting: TTSProviderSetting.DeepSeek, onValueChange: (TTSProviderSetting) -> Unit) {
+    OutlinedTextField(value = setting.baseUrl, onValueChange = { onValueChange(setting.copy(baseUrl = it)) }, label = { Text("API 地址") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = setting.apiKey, onValueChange = { onValueChange(setting.copy(apiKey = it)) }, label = { Text("API Key") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = setting.voiceId, onValueChange = { onValueChange(setting.copy(voiceId = it)) }, label = { Text("音色（stella / tide）") }, modifier = Modifier.fillMaxWidth())
 }

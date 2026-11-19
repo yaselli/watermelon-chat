@@ -524,11 +524,11 @@ private fun ColumnScope.ProviderConfigureGoogle(
         )
     }
 
-    if (!provider.vertexAI) {
+    if (!provider.vertexAI || provider.useServiceAccount) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("使用 Gemini Interactions API")
-                Text("按本地会话管理历史，不启用服务端续接。关闭可使用原 GenerateContent 接口。",
+                Text(if (provider.vertexAI) "服务账号支持 global、us、eu，其他区域使用 GenerateContent。" else "按本地会话管理历史，不启用服务端续接。关闭可使用原 GenerateContent 接口。",
                     style = MaterialTheme.typography.bodySmall)
             }
             Checkbox(checked = provider.useInteractionsApi,
