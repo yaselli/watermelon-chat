@@ -490,6 +490,13 @@ fun ChatDrawerContent(
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("共读室") },
+                            onClick = {
+                                showMenuPopup = false
+                                navController.navigate(Screen.Coread)
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("健康数据") },
                             leadingIcon = { Icon(HugeIcons.Zap, null) },
                             onClick = {

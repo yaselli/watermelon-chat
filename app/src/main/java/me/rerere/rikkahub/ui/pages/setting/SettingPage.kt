@@ -234,6 +234,12 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         headlineContent = { Text(stringResource(R.string.setting_page_display_setting)) },
                     )
                     item(
+                        onClick = { navController.navigate(Screen.Coread) },
+                        leadingContent = { Icon(HugeIcons.Package, null) },
+                        headlineContent = { Text("共读室") },
+                        supportingContent = { Text("和角色一起读书、划线和写批注") },
+                    )
+                    item(
                         onClick = { navController.navigate(Screen.SettingPlugins) },
                         leadingContent = { Icon(HugeIcons.Package, null) },
                         supportingContent = { Text("管理本地插件，导入ZIP插件包") },
