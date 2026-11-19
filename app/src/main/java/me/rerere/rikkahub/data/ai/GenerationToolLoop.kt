@@ -63,7 +63,7 @@ internal suspend fun runGenerationToolLoop(
         if (generated.isEmpty()) return messages
         if (finalTurn) error(toolLimitError)
         val missingNames = generated.map { it.toolName }.toSet() - definitions.map { it.name }.toSet()
-        val executionDefinitions = if (discovery != null && missingNames.any { name -> available.any { it.name == name } }) {
+        val executionDefinitions = if (discovery != null && generated.none { it.toolName == ToolDiscoverySession.ENTRY } && missingNames.any { name -> available.any { it.name == name } }) {
             discovery.expose(available, missingNames)
         } else {
             definitions
