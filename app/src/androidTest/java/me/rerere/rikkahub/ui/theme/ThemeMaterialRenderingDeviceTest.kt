@@ -272,6 +272,31 @@ class ThemeMaterialRenderingDeviceTest {
     }
 
     @Test
+    fun drawerReversalKeepsChatTextVisibleAtItsMovingPosition() {
+        var fraction by mutableStateOf(0f)
+        compose.setContent {
+            Box(Modifier.fillMaxSize().background(Color.White)) {
+                Box(Modifier.fillMaxSize().chatDrawerTransform { fraction }) {
+                    Text("聊天文字", Modifier.testTag("ink"), color = Color.Black)
+                }
+            }
+        }
+        val node = compose.onNodeWithTag("ink")
+        val initial = node.fetchSemanticsNode().boundsInRoot
+        val travel = with(compose.density) { 108.dp.toPx() }
+        for (position in listOf(0f, 0.95f, 0.02f, 0.85f, 1f, 0f)) {
+            compose.runOnIdle { fraction = position }
+            val bounds = node.fetchSemanticsNode().boundsInRoot
+            assertEquals(initial.left + travel * position, bounds.left, 1f)
+            val pixels = compose.onRoot().captureToImage().toPixelMap()
+            val hasInk = (bounds.top.toInt() until bounds.bottom.toInt()).any { y ->
+                (bounds.left.toInt() until bounds.right.toInt()).any { x -> pixels[x, y].red < 0.4f }
+            }
+            assertTrue("Chat text disappeared at drawer position $position", hasInk)
+        }
+    }
+
+    @Test
     fun drawerLayerTransitionsNeverChangeWallpaperOutsideMaterialBounds() {
         var progress by mutableStateOf(0f)
         var style by mutableStateOf(materials.first())
