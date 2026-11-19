@@ -43,7 +43,7 @@ fun ZoomableAsyncImage(
         me.rerere.rikkahub.ui.components.ai.StickerImage(
             model, label, Modifier.clickable { showImageViewer = true }, inChat = true,
         )
-        if (showImageViewer) ImagePreviewDialog(images = listOf(model)) { showImageViewer = false }
+        if (showImageViewer) ImagePreviewDialog(images = listOf(me.rerere.rikkahub.ui.components.ai.stickerImageSource(LocalContext.current, model))) { showImageViewer = false }
         return
     }
     val context = LocalContext.current
