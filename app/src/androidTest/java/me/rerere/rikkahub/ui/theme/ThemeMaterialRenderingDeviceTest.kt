@@ -360,12 +360,15 @@ class ThemeMaterialRenderingDeviceTest {
         for (material in materials + UiMaterialStyle.SOFT_SHADOW) {
             compose.runOnIdle { style = material }
             repeat(2) {
-                for (fraction in listOf(0f, 0.02f, 0.8f, 1f, 0.5f, 0.02f, 0.7f, 0f)) {
+                for (fraction in listOf(0f, 0.02f, 0.8f, 1f, 0.5f, 0.02f, 0.002f, 0.0005f, 0.7f, 0f)) {
                     compose.runOnIdle { progress = fraction }
                     compose.mainClock.advanceTimeBy(100)
                     compose.waitForIdle()
                     val pixels = compose.onRoot().captureToImage().toPixelMap()
-                    for ((x, y) in positions) {
+                    val probes = if (fraction <= 0.02f)
+                        positions + listOf(0.50f to 0.48f, 0.50f to 0.50f, 0.50f to 0.52f)
+                    else positions
+                    for ((x, y) in probes) {
                         val px = (pixels.width * x).toInt()
                         val py = (pixels.height * y).toInt()
                         val expected = initial[px, py]

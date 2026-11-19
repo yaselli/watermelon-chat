@@ -48,6 +48,14 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -117,8 +125,27 @@ internal fun Modifier.chatDrawerTransform(progress: () -> Float): Modifier {
         rotationY = -10.5f * fraction
         cameraDistance = 22f * density
         transformOrigin = TransformOrigin(0f, 0.5f)
-        shape = cardShape
-        shadowElevation = 18.dp.toPx() * fraction
+    }.drawWithCache {
+        // Wallpaper sits behind this transparent page. Draw the shadow only outside its outline.
+        val radius = 28.dp.toPx()
+        val outline = Path().apply {
+            addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
+        }
+        val step = 1.5.dp.toPx()
+        onDrawBehind {
+            val fraction = progress()
+            if (fraction > 0f) clipPath(outline, ClipOp.Difference) {
+                for (ring in 12 downTo 1) {
+                    val spread = step * ring
+                    drawRoundRect(
+                        color = Color.Black.copy(alpha = 0.015f * fraction),
+                        topLeft = Offset(-spread, -spread),
+                        size = Size(size.width + 2 * spread, size.height + 2 * spread),
+                        cornerRadius = CornerRadius(radius + spread),
+                    )
+                }
+            }
+        }
     }.graphicsLayer {
         // Composite text and material together before the outer layer applies perspective.
         val moving = progress() > 0f
