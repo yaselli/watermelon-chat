@@ -73,6 +73,30 @@ class FakeGithub:
 
 
 class PublishUpdateTest(unittest.TestCase):
+    def setUp(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (root / 'scripts').symlink_to(module.ROOT / 'scripts', target_is_directory=True)
+        (root / '.github').mkdir()
+        (root / 'docs/releases').mkdir(parents=True)
+        plan = {'version': '1.2.3', 'versionCode': 123, 'testedCommit': SOURCE,
+                'channels': ['release', 'debug'], 'notes': 'docs/releases/1.2.3.md',
+                'verifiedRuns': {'release': 0, 'debug': 0}}
+        (root / plan['notes']).write_text('Fixture release notes')
+        (root / '.github/release-plan.json').write_text(json.dumps(plan))
+        self.enterContext(patch.object(module, 'ROOT', root))
+
+    def test_debug_only_plan_skips_release(self):
+        path = module.ROOT / '.github/release-plan.json'
+        plan = json.loads(path.read_text())
+        plan['channels'] = ['debug']
+        path.write_text(json.dumps(plan))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.artifact(root)
+            gh = FakeGithub(root)
+            self.assertFalse(module.publish(root, 'release', ENV, gh))
+            self.assertFalse(gh.calls)
+
     def artifact(self, root, channel='release'):
         plan = json.loads((module.ROOT / '.github/release-plan.json').read_text())
         version = plan['version'] + ('-debug.1' if channel == 'debug' else '')
