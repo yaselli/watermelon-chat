@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.DrawerState
@@ -46,8 +47,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalScrollCaptureInProgress
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -104,14 +107,26 @@ import me.rerere.rikkahub.ui.theme.MaterialBackdrop
 import me.rerere.rikkahub.ui.theme.MaterialRole
 import me.rerere.rikkahub.ui.theme.themeMaterial
 
-internal fun Modifier.chatDrawerTransform(progress: () -> Float): Modifier =
-    layout { measurable, constraints ->
-        val page = measurable.measure(constraints)
-        layout(page.width, page.height) {
-            // Move the page at placement time. Text and bubble shadows stay in their own layers.
-            page.placeRelative((108.dp * progress()).roundToPx(), 0)
-        }
+internal fun Modifier.chatDrawerTransform(progress: () -> Float): Modifier {
+    val cardShape = RoundedCornerShape(28.dp)
+    return graphicsLayer {
+        val fraction = progress()
+        translationX = 108.dp.toPx() * fraction
+        scaleX = 1f - 0.075f * fraction
+        scaleY = scaleX
+        rotationY = -10.5f * fraction
+        cameraDistance = 22f * density
+        transformOrigin = TransformOrigin(0f, 0.5f)
+        shape = cardShape
+        shadowElevation = 18.dp.toPx() * fraction
+    }.graphicsLayer {
+        // Composite text and material together before the outer layer applies perspective.
+        val moving = progress() > 0f
+        compositingStrategy = if (moving) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+        shape = cardShape
+        clip = moving
     }
+}
 
 @Composable
 fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, autoStartVoice: Boolean = false) {

@@ -254,8 +254,8 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                     title = { Text("侧边栏动效") },
                 ) {
                     item(
-                        headlineContent = { Text("视差侧滑动效") },
-                        supportingContent = { Text("滑动侧边栏时，聊天页随手势缓慢平移") },
+                        headlineContent = { Text("立体侧滑动效") },
+                        supportingContent = { Text("侧边栏打开时，聊天页右移并产生立体透视") },
                         trailingContent = {
                             Switch(
                                 checked = displaySetting.enableDrawerCardTransform,
