@@ -89,6 +89,7 @@ class ToolSurfaceBuilder(
                 )
             )
         }
+        if (settings.chatStickers.isNotEmpty()) add(stickerTool(settings.chatStickers))
         if (settings.enableWebSearch) {
             addAll(createSearchTools(settings))
         }

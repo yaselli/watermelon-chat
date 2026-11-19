@@ -56,6 +56,7 @@ import me.rerere.rikkahub.data.model.InjectionPosition
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.MiniApp
 import me.rerere.rikkahub.data.model.PromptInjection
+import me.rerere.rikkahub.data.model.ChatSticker
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.security.SecretCrypto
@@ -164,6 +165,7 @@ class SettingsStore(
         // 提示词注入
         val MODE_INJECTIONS = stringPreferencesKey("mode_injections")
         val LOREBOOKS = stringPreferencesKey("lorebooks")
+        val CHAT_STICKERS = stringPreferencesKey("chat_stickers")
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
 
         // 备份提醒
@@ -331,6 +333,7 @@ class SettingsStore(
                 lorebooks = preferences[LOREBOOKS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
+                chatStickers = preferences[CHAT_STICKERS]?.let { JsonInstant.decodeFromString(it) } ?: emptyList(),
                 quickMessages = preferences[QUICK_MESSAGES]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
@@ -568,6 +571,7 @@ class SettingsStore(
                 preferences[VOICE_CALL_LISTEN_WHILE_REPLYING] = settings.voiceCallListenWhileReplying
                 preferences[MODE_INJECTIONS] = JsonInstant.encodeToString(settings.modeInjections)
                 preferences[LOREBOOKS] = JsonInstant.encodeToString(settings.lorebooks)
+                preferences[CHAT_STICKERS] = JsonInstant.encodeToString(settings.chatStickers)
                 preferences[QUICK_MESSAGES] = JsonInstant.encodeToString(settings.quickMessages)
                 preferences[WEB_SERVER_ENABLED] = settings.webServerEnabled
                 preferences[WEB_SERVER_PORT] = settings.webServerPort
@@ -772,6 +776,7 @@ data class Settings(
     val voiceCallRawAudio: Boolean = false,
     val modeInjections: List<PromptInjection.ModeInjection> = DEFAULT_MODE_INJECTIONS,
     val lorebooks: List<Lorebook> = emptyList(),
+    val chatStickers: List<ChatSticker> = emptyList(),
     val quickMessages: List<QuickMessage> = emptyList(),
     val webServerEnabled: Boolean = false,
     val webServerPort: Int = 8080,

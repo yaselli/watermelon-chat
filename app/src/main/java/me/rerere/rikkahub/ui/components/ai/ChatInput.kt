@@ -677,19 +677,10 @@ fun ChatInput(
                                         showStickerPicker = true
                                     }
                             ) {
-                                    Text(
-                                        text = "🙂",
-                                        style = MaterialTheme.typography.titleMedium,
-                                    )
-                            }
-
-                            ActionIconButton(
-                                    onClick = {
-                                        expandToggle(ExpandState.Files)
-                                    }) {
                                     Icon(
-                                        imageVector = if (expand == ExpandState.Files) HugeIcons.Cancel01 else HugeIcons.Add01,
-                                        contentDescription = stringResource(R.string.more_options)
+                                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_sticker_smile),
+                                        contentDescription = "选择表情包",
+                                        modifier = Modifier.size(20.dp),
                                     )
                             }
 
@@ -731,6 +722,16 @@ fun ChatInput(
                                             )
                                         }
                                     }
+                            }
+
+                            ActionIconButton(
+                                    onClick = {
+                                        expandToggle(ExpandState.Files)
+                                    }) {
+                                    Icon(
+                                        imageVector = if (expand == ExpandState.Files) HugeIcons.Cancel01 else HugeIcons.Add01,
+                                        contentDescription = stringResource(R.string.more_options)
+                                    )
                             }
 
                             AnimatedVisibility(
