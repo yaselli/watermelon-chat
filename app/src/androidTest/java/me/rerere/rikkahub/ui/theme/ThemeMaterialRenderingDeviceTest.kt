@@ -25,9 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
+import me.rerere.rikkahub.ui.pages.chat.chatDrawerTransform
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
@@ -300,20 +299,7 @@ class ThemeMaterialRenderingDeviceTest {
                     ) {
                         Box(
                             Modifier.fillMaxSize()
-                                .then(
-                                    if (progress > 0.001f)
-                                        Modifier.graphicsLayer {
-                                            translationX = 108.dp.toPx() * progress
-                                            scaleX = 1f - 0.075f * progress
-                                            scaleY = scaleX
-                                            rotationY = -10.5f * progress
-                                            cameraDistance = 22f * density
-                                            transformOrigin = TransformOrigin(0f, 0.5f)
-                                            shape = RoundedCornerShape(28.dp)
-                                            clip = true
-                                        }
-                                    else Modifier
-                                )
+                                .chatDrawerTransform { progress }
                         ) {
                             Box(
                                 Modifier.padding(24.dp)
@@ -346,10 +332,10 @@ class ThemeMaterialRenderingDeviceTest {
         val initial = compose.onRoot().captureToImage().toPixelMap()
         // These points stay outside both the moving bubble and the drawer, even at full opening.
         val positions = listOf(0.88f to 0.70f, 0.93f to 0.82f, 0.97f to 0.91f)
-        for (material in materials) {
+        for (material in materials + UiMaterialStyle.SOFT_SHADOW) {
             compose.runOnIdle { style = material }
             repeat(2) {
-                for (fraction in listOf(0f, 0.25f, 0.8f, 1f, 0.5f, 0f)) {
+                for (fraction in listOf(0f, 0.02f, 0.8f, 1f, 0.5f, 0.02f, 0.7f, 0f)) {
                     compose.runOnIdle { progress = fraction }
                     compose.mainClock.advanceTimeBy(100)
                     compose.waitForIdle()

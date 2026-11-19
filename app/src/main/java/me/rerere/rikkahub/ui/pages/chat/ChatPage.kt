@@ -10,9 +10,6 @@ import me.rerere.rikkahub.data.music.cardPart
 import me.rerere.rikkahub.data.music.musicCard
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
@@ -47,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.TransformOrigin
@@ -76,6 +74,7 @@ import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.hugeicons.stroke.Voice
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.datastore.UiMaterialStyle
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
@@ -106,6 +105,22 @@ import me.rerere.rikkahub.ui.theme.MaterialAlertDialog as AlertDialog
 import me.rerere.rikkahub.ui.theme.MaterialBackdrop
 import me.rerere.rikkahub.ui.theme.MaterialRole
 import me.rerere.rikkahub.ui.theme.themeMaterial
+
+internal fun Modifier.chatDrawerTransform(progress: () -> Float): Modifier {
+    val cardShape = RoundedCornerShape(28.dp)
+    return graphicsLayer {
+        val fraction = progress()
+        translationX = 108.dp.toPx() * fraction
+        scaleX = 1f - 0.075f * fraction
+        scaleY = scaleX
+        rotationY = -10.5f * fraction
+        cameraDistance = 22f * density
+        transformOrigin = TransformOrigin(0f, 0.5f)
+        shape = cardShape
+        clip = fraction > 0f
+        shadowElevation = 18.dp.toPx() * fraction
+    }
+}
 
 @Composable
 fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, autoStartVoice: Boolean = false) {
@@ -231,54 +246,32 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, au
         }
 
         else -> {
-            // Liquid-glass drawer motion: the conversation stays visible behind the
-            // drawer, then gently shifts, scales and tilts like a physical card.
-            val drawerProgress by animateFloatAsState(
-                targetValue = if (
-                    setting.displaySetting.enableDrawerCardTransform &&
-                    drawerState.targetValue == DrawerValue.Open
-                ) 1f else 0f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-                label = "ChatDrawerProgress",
-            )
-            val chatCardShape = RoundedCornerShape(28.dp)
+            var drawerWidthPx by remember { mutableIntStateOf(0) }
 
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 scrimColor = Color.Black.copy(alpha = 0.06f),
                 drawerContent = {
-                    ChatDrawerContent(
-                        navController = navController,
-                        current = conversation,
-                        vm = vm,
-                        settings = setting,
-                    )
+                    Box(Modifier.onSizeChanged { drawerWidthPx = it.width }) {
+                        ChatDrawerContent(
+                            navController = navController,
+                            current = conversation,
+                            vm = vm,
+                            settings = setting,
+                        )
+                    }
                 }
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(
-                            if (drawerProgress > 0.001f && !scrollCaptureInProgress) {
-                                Modifier.graphicsLayer {
-                                    // Create the off-screen layer only while the
-                                    // drawer transition is visibly running. A
-                                    // permanent layer prevents Android scroll
-                                    // capture from treating the chat as a plain
-                                    // scrollable surface.
-                                    translationX = 108.dp.toPx() * drawerProgress
-                                    scaleX = 1f - (0.075f * drawerProgress)
-                                    scaleY = 1f - (0.075f * drawerProgress)
-                                    rotationY = -10.5f * drawerProgress
-                                    rotationZ = 0f
-                                    cameraDistance = 22f * density
-                                    transformOrigin = TransformOrigin(0f, 0.5f)
-                                    shape = chatCardShape
-                                    clip = true
-                                    shadowElevation = 18.dp.toPx() * drawerProgress
+                            if (setting.displaySetting.enableDrawerCardTransform && !scrollCaptureInProgress) {
+                                Modifier.chatDrawerTransform {
+                                    val offset = drawerState.currentOffset
+                                    if (drawerWidthPx > 0 && offset.isFinite())
+                                        (1f + offset / drawerWidthPx).coerceIn(0f, 1f)
+                                    else 0f
                                 }
                             } else {
                                 Modifier
@@ -340,7 +333,7 @@ private fun ChatPageContent(
     val toaster = LocalToaster.current
     val scrollCaptureInProgress = LocalScrollCaptureInProgress.current
     val displaySetting = setting.displaySetting
-    val needsLiveHaze = displaySetting.enableBlurEffect
+    val needsLiveHaze = displaySetting.enableBlurEffect && displaySetting.themeMaterial.style == UiMaterialStyle.ORIGINAL
     var previewMode by rememberSaveable { mutableStateOf(false) }
     var showConversationSettings by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var pendingSentMessageId by remember(conversation.id) { mutableStateOf<Uuid?>(null) }
