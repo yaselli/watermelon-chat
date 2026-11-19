@@ -213,6 +213,20 @@ sealed class TTSProviderSetting {
         }
     }
 
+    @Serializable
+    @SerialName("deepseek")
+    data class DeepSeek(
+        override val id: Uuid = Uuid.random(),
+        override val name: String = "DeepSeek TTS",
+        val apiKey: String = "",
+        val baseUrl: String = "https://api.deepseek.com",
+        // stella (女声, 默认) | tide (男声)
+        val voiceId: String = "stella",
+    ) : TTSProviderSetting() {
+        override fun copyProvider(id: Uuid, name: String): TTSProviderSetting =
+            copy(id = id, name = name)
+    }
+
     companion object {
         val Types by lazy {
             listOf(
@@ -224,6 +238,7 @@ sealed class TTSProviderSetting {
                 Groq::class,
                 XAI::class,
                 MiMo::class,
+                DeepSeek::class,
                 ElevenLabs::class,
             )
         }

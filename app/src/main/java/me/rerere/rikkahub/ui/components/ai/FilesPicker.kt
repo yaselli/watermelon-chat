@@ -28,8 +28,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import me.rerere.rikkahub.ui.theme.MaterialModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,6 +58,7 @@ import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.Package01
+import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -95,6 +97,9 @@ internal fun FilesPicker(
     onPickAudio: () -> Unit,
     onRecordAudio: () -> Unit,
     onPickFile: () -> Unit,
+    onConversationSettings: () -> Unit,
+    onSharedMusic: () -> Unit,
+    conversationSettingsEnabled: Boolean,
 ) {
     // settings 仍保留给 InjectionQuickConfigSheet -> ExtensionSelector 使用（它需要完整 Settings）
     val settings = LocalSettings.current
@@ -102,6 +107,7 @@ internal fun FilesPicker(
     val providers = LocalProviders.current
     val mcpServers = LocalMcpServers.current
     val provider = currentChatModel?.findProvider(providers = providers)
+    val rowColors = ListItemDefaults.colors(containerColor = Color.Transparent)
 
     Column(
         modifier = Modifier
@@ -110,7 +116,7 @@ internal fun FilesPicker(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TakePicButton(onLaunchCamera = onTakePic)
 
@@ -140,6 +146,7 @@ internal fun FilesPicker(
                 assistant = assistant,
                 servers = mcpServers,
                 mcpManager = mcpManager,
+                colors = rowColors,
                 onUpdateAssistant = onUpdateAssistant,
             )
         }
@@ -148,6 +155,7 @@ internal fun FilesPicker(
         val activeCount =
             assistant.quickMessageIds.size + assistant.modeInjectionIds.size + assistant.lorebookIds.size + assistant.enabledSkills.size
         ListItem(
+            colors = rowColors,
             leadingContent = {
                 Icon(
                     imageVector = HugeIcons.Package,
@@ -173,8 +181,26 @@ internal fun FilesPicker(
                 },
         )
 
+        ListItem(
+            colors = rowColors,
+            leadingContent = { Icon(HugeIcons.Settings03, contentDescription = null) },
+            headlineContent = { Text("会话设置") },
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.large)
+                .clickable(enabled = conversationSettingsEnabled, onClick = onConversationSettings),
+        )
+
+        ListItem(
+            colors = rowColors,
+            leadingContent = { Text("♫") },
+            headlineContent = { Text("一起听歌") },
+            supportingContent = { Text("网易云、歌词和你们的播放列表") },
+            modifier = Modifier.clip(MaterialTheme.shapes.large).clickable(onClick = onSharedMusic),
+        )
+
         // Compress History Button
         ListItem(
+            colors = rowColors,
             leadingContent = {
                 Icon(
                     imageVector = HugeIcons.Package01,
@@ -346,7 +372,7 @@ private fun BigIconTextButton(
     val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(
                 interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick
             )
@@ -357,10 +383,11 @@ private fun BigIconTextButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Surface(
-            tonalElevation = 2.dp, shape = RoundedCornerShape(8.dp)
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+            shape = RoundedCornerShape(12.dp),
         ) {
             Box(
-                modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 icon()
             }

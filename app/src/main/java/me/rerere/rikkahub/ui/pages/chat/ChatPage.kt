@@ -6,19 +6,18 @@
 
 package me.rerere.rikkahub.ui.pages.chat
 
+import me.rerere.rikkahub.data.music.cardPart
+import me.rerere.rikkahub.data.music.musicCard
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
@@ -39,11 +38,24 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -71,9 +83,8 @@ import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.hugeicons.stroke.Voice
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.UiMaterialStyle
-import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
@@ -84,6 +95,9 @@ import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.service.BlockedChatState
 import me.rerere.rikkahub.service.VoiceCallService
 import me.rerere.rikkahub.ui.components.ai.ChatInput
+import me.rerere.rikkahub.ui.components.ai.MessageQueuePanel
+import me.rerere.rikkahub.ui.components.ai.ConversationSettingsDialog
+import me.rerere.rikkahub.ui.components.ui.AppUpdatePrompt
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.Navigator
@@ -96,6 +110,50 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import kotlin.uuid.Uuid
+import me.rerere.rikkahub.ui.theme.MaterialAlertDialog as AlertDialog
+import me.rerere.rikkahub.ui.theme.MaterialBackdrop
+import me.rerere.rikkahub.ui.theme.MaterialRole
+import me.rerere.rikkahub.ui.theme.themeMaterial
+
+internal fun Modifier.chatDrawerTransform(progress: () -> Float): Modifier {
+    val cardShape = RoundedCornerShape(28.dp)
+    return graphicsLayer {
+        val fraction = progress()
+        translationX = 108.dp.toPx() * fraction
+        scaleX = 1f - 0.075f * fraction
+        scaleY = scaleX
+        rotationY = -10.5f * fraction
+        cameraDistance = 22f * density
+        transformOrigin = TransformOrigin(0f, 0.5f)
+    }.drawWithCache {
+        // Wallpaper sits behind this transparent page. Draw the shadow only outside its outline.
+        val radius = 28.dp.toPx()
+        val outline = Path().apply {
+            addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
+        }
+        val step = 1.5.dp.toPx()
+        onDrawBehind {
+            val fraction = progress()
+            if (fraction > 0f) clipPath(outline, ClipOp.Difference) {
+                for (ring in 12 downTo 1) {
+                    val spread = step * ring
+                    drawRoundRect(
+                        color = Color.Black.copy(alpha = 0.015f * fraction),
+                        topLeft = Offset(-spread, -spread),
+                        size = Size(size.width + 2 * spread, size.height + 2 * spread),
+                        cornerRadius = CornerRadius(radius + spread),
+                    )
+                }
+            }
+        }
+    }.graphicsLayer {
+        // Composite text and material together before the outer layer applies perspective.
+        val moving = progress() > 0f
+        compositingStrategy = if (moving) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+        shape = cardShape
+        clip = moving
+    }
+}
 
 @Composable
 fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, autoStartVoice: Boolean = false) {
@@ -109,6 +167,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, au
     val scope = rememberCoroutineScope()
 
     val setting by vm.settings.collectAsStateWithLifecycle()
+    AppUpdatePrompt(vm)
     val conversation by vm.conversation.collectAsStateWithLifecycle()
     val loadingJob by vm.conversationJob.collectAsStateWithLifecycle()
     val processingStatus by vm.processingStatus.collectAsStateWithLifecycle()
@@ -184,7 +243,8 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, au
         }
     }
 
-    when {
+    MaterialBackdrop(background = { AssistantBackground(setting = setting) }) {
+        when {
         isBigScreen -> {
             PermanentNavigationDrawer(
                 drawerContent = {
@@ -193,7 +253,6 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, au
                         current = conversation,
                         vm = vm,
                         settings = setting,
-                        hazeState = hazeState,
                     )
                 }
             ) {
@@ -220,55 +279,32 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, au
         }
 
         else -> {
-            // Liquid-glass drawer motion: the conversation stays visible behind the
-            // drawer, then gently shifts, scales and tilts like a physical card.
-            val drawerProgress by animateFloatAsState(
-                targetValue = if (
-                    setting.displaySetting.enableDrawerCardTransform &&
-                    drawerState.targetValue == DrawerValue.Open
-                ) 1f else 0f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-                label = "ChatDrawerProgress",
-            )
-            val chatCardShape = RoundedCornerShape(28.dp)
+            var drawerWidthPx by remember { mutableIntStateOf(0) }
 
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 scrimColor = Color.Black.copy(alpha = 0.06f),
                 drawerContent = {
-                    ChatDrawerContent(
-                        navController = navController,
-                        current = conversation,
-                        vm = vm,
-                        settings = setting,
-                        hazeState = hazeState,
-                    )
+                    Box(Modifier.onSizeChanged { drawerWidthPx = it.width }) {
+                        ChatDrawerContent(
+                            navController = navController,
+                            current = conversation,
+                            vm = vm,
+                            settings = setting,
+                        )
+                    }
                 }
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(
-                            if (drawerProgress > 0.001f && !scrollCaptureInProgress) {
-                                Modifier.graphicsLayer {
-                                    // Create the off-screen layer only while the
-                                    // drawer transition is visibly running. A
-                                    // permanent layer prevents Android scroll
-                                    // capture from treating the chat as a plain
-                                    // scrollable surface.
-                                    translationX = 108.dp.toPx() * drawerProgress
-                                    scaleX = 1f - (0.075f * drawerProgress)
-                                    scaleY = 1f - (0.075f * drawerProgress)
-                                    rotationY = -10.5f * drawerProgress
-                                    rotationZ = 0f
-                                    cameraDistance = 22f * density
-                                    transformOrigin = TransformOrigin(0f, 0.5f)
-                                    shape = chatCardShape
-                                    clip = true
-                                    shadowElevation = 18.dp.toPx() * drawerProgress
+                            if (setting.displaySetting.enableDrawerCardTransform && !scrollCaptureInProgress) {
+                                Modifier.chatDrawerTransform {
+                                    val offset = drawerState.currentOffset
+                                    if (drawerWidthPx > 0 && offset.isFinite())
+                                        (1f + offset / drawerWidthPx).coerceIn(0f, 1f)
+                                    else 0f
                                 }
                             } else {
                                 Modifier
@@ -302,6 +338,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null, au
         }
     }
 }
+}
 
 @Composable
 private fun ChatPageContent(
@@ -323,13 +360,33 @@ private fun ChatPageContent(
     onDismissError: (Uuid) -> Unit,
     onClearAllErrors: () -> Unit,
 ) {
+    val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
+    val reactions by vm.reactions.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
     val scrollCaptureInProgress = LocalScrollCaptureInProgress.current
     val displaySetting = setting.displaySetting
-    val needsLiveHaze = displaySetting.inputMaterialStyle == UiMaterialStyle.LIQUID_GLASS ||
-        displaySetting.enableBlurEffect || displaySetting.enableGlassDrawer
+    val needsLiveHaze = displaySetting.enableBlurEffect && displaySetting.themeMaterial.style == UiMaterialStyle.ORIGINAL
     var previewMode by rememberSaveable { mutableStateOf(false) }
+    var showConversationSettings by rememberSaveable(conversation.id) { mutableStateOf(false) }
+    var pendingSentMessageId by remember(conversation.id) { mutableStateOf<Uuid?>(null) }
+    fun sendMessage(parts: List<UIMessagePart>, answer: Boolean = true) {
+        vm.handleMessageSend(parts, answer)?.let { messageId ->
+            pendingSentMessageId = messageId
+            previewMode = false
+        }
+    }
+    var showSharedMusic by rememberSaveable(conversation.id) { mutableStateOf(false) }
+    var sharedMusicTab by rememberSaveable(conversation.id) { mutableIntStateOf(0) }
+    if (showSharedMusic) me.rerere.rikkahub.ui.components.music.SharedMusicSheet(
+        assistantId = conversation.assistantId.toString(),
+        conversationId = conversation.id.toString(),
+        onDismiss = { showSharedMusic = false },
+        initialTab = sharedMusicTab,
+        onShare = { song, lines ->
+            inputState.messageContent = inputState.messageContent + song.cardPart(lines = lines)
+        },
+    )
     val blockedChatState by vm.blockedChatState.collectAsStateWithLifecycle()
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(blockedChatState.blocked) {
@@ -338,10 +395,9 @@ private fun ChatPageContent(
     TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
     Surface(
-        color = MaterialTheme.colorScheme.background,
+        color = Color.Transparent,
         modifier = Modifier.fillMaxSize()
     ) {
-        AssistantBackground(setting = setting)
         Scaffold(
             topBar = {
                 TopBar(
@@ -387,113 +443,137 @@ private fun ChatPageContent(
                         onContinue = vm::continueBlockedReplies,
                         onPause = vm::pauseBlockedReplies,
                     )
-                } else ChatInput(
-                    state = inputState,
-                    loading = loadingJob != null,
-                    settings = setting,
-                    conversation = conversation,
-                    mcpManager = vm.mcpManager,
-                    hazeState = hazeState,
-                    autoStartVoice = autoStartVoice,
-                    onCancelClick = {
-                        vm.stopGeneration()
-                    },
-                    enableSearch = enableWebSearch,
-                    onToggleSearch = {
-                        vm.updateSettings(setting.copy(enableWebSearch = !enableWebSearch))
-                    },
-                    onSendClick = {
-                        if (currentChatModel == null) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
-                            return@ChatInput
+                } else Column {
+                    me.rerere.rikkahub.ui.components.music.SharedMusicMiniBar(
+                        conversation.assistantId.toString(), onOpen = { sharedMusicTab = 2
+                                showSharedMusic = true },
+                    )
+                    inputState.messageContent.filter { it.musicCard() != null }.forEach { part ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(part.musicCard()?.get("title")?.toString().orEmpty(), Modifier.weight(1f))
+                            TextButton(onClick = { inputState.messageContent = inputState.messageContent - part }) {
+                                Text("移除歌曲")
+                            }
                         }
-                        if (inputState.messageContent.any { it is UIMessagePart.Audio }) {
-                            val audioProvider = currentChatModel?.findProvider(setting.providers)
-                            val supported = supportsRawAudioInput(audioProvider)
-                            if (!supported) {
-                                toaster.show(
-                                    "原始录音需使用 Gemini 或 OpenAI Chat Completions 音频模型",
-                                    type = ToastType.Error,
-                                )
+                    }
+                    if (showConversationSettings) {
+                        ConversationSettingsDialog(
+                            conversation = conversation,
+                            assistant = setting.getCurrentAssistant(),
+                            model = currentChatModel,
+                            loading = loadingJob != null,
+                            onSave = vm::updateConversationParameters,
+                            onModelLimit = vm::setModelContextWindow,
+                            onSync = vm::syncConversationDefaults,
+                            onDismiss = { showConversationSettings = false },
+                        )
+                    }
+                    MessageQueuePanel(
+                        state = messageQueue,
+                        onRemove = vm::removeQueuedMessage,
+                        onBeginEdit = vm::beginEditQueuedMessage,
+                        onFinishEdit = vm::finishEditQueuedMessage,
+                        onResume = vm::resumeMessageQueue,
+                    )
+                    ChatInput(
+                        state = inputState,
+                        loading = loadingJob != null,
+                        settings = setting,
+                        conversation = conversation,
+                        mcpManager = vm.mcpManager,
+                        hazeState = hazeState,
+                        autoStartVoice = autoStartVoice,
+                        onConversationSettings = { showConversationSettings = true },
+                        onSharedMusic = { sharedMusicTab = 0
+                                showSharedMusic = true },
+                        onCancelClick = {
+                            vm.stopGeneration()
+                        },
+                        enableSearch = enableWebSearch,
+                        onToggleSearch = {
+                            vm.updateSettings(setting.copy(enableWebSearch = !enableWebSearch))
+                        },
+                        onSendClick = {
+                            if (currentChatModel == null) {
+                                toaster.show("请先选择模型", type = ToastType.Error)
                                 return@ChatInput
                             }
-                        }
-                        if (inputState.isEditing()) {
-                            vm.handleMessageEdit(
-                                parts = inputState.getContents(),
-                                messageId = inputState.editingMessage!!,
-                            )
-                        } else {
-                            vm.handleMessageSend(inputState.getContents())
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+                            if (inputState.messageContent.any { it is UIMessagePart.Audio }) {
+                                val audioProvider = currentChatModel?.findProvider(setting.providers)
+                                val supported = supportsRawAudioInput(audioProvider)
+                                if (!supported) {
+                                    toaster.show(
+                                        "原始录音需使用 Gemini 或 OpenAI Chat Completions 音频模型",
+                                        type = ToastType.Error,
+                                    )
+                                    return@ChatInput
+                                }
                             }
-                        }
-                        inputState.clearInput()
-                    },
-                    onStickerSend = { markdown ->
-                        if (currentChatModel == null) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
-                            return@ChatInput
-                        }
-                        vm.handleMessageSend(
-                            listOf(UIMessagePart.Text(markdown))
-                        )
-                        scope.launch {
-                            chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                        }
-                    },
-                    onVoiceMessage = { url, duration, transcript ->
-                        if (currentChatModel == null) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
-                            return@ChatInput
-                        }
-                        vm.handleMessageSend(
-                            listOf(
-                                UIMessagePart.VoiceMessage(
-                                    url = url,
-                                    duration = duration,
-                                    transcript = transcript,
+                            if (inputState.isEditing()) {
+                                vm.handleMessageEdit(
+                                    parts = inputState.getContents(),
+                                    messageId = inputState.editingMessage!!,
+                                )
+                            } else {
+                                sendMessage(inputState.getContents())
+                            }
+                            inputState.clearInput()
+                        },
+                        onStickerSend = { markdown ->
+                            if (currentChatModel == null) {
+                                toaster.show("请先选择模型", type = ToastType.Error)
+                                return@ChatInput
+                            }
+                            sendMessage(
+                                listOf(UIMessagePart.Text(markdown))
+                            )
+                        },
+                        onVoiceMessage = { url, duration, transcript ->
+                            if (currentChatModel == null) {
+                                toaster.show("请先选择模型", type = ToastType.Error)
+                                return@ChatInput
+                            }
+                            sendMessage(
+                                listOf(
+                                    UIMessagePart.VoiceMessage(
+                                        url = url,
+                                        duration = duration,
+                                        transcript = transcript,
+                                    )
                                 )
                             )
-                        )
-                        scope.launch {
-                            chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                        }
-                    },
-                    onLongSendClick = {
-                        if (inputState.isEditing()) {
-                            vm.handleMessageEdit(
-                                parts = inputState.getContents(),
-                                messageId = inputState.editingMessage!!,
-                            )
-                        } else {
-                            vm.handleMessageSend(content = inputState.getContents(), answer = false)
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+                        },
+                        onLongSendClick = {
+                            if (inputState.isEditing()) {
+                                vm.handleMessageEdit(
+                                    parts = inputState.getContents(),
+                                    messageId = inputState.editingMessage!!,
+                                )
+                            } else {
+                                sendMessage(inputState.getContents(), answer = false)
                             }
-                        }
-                        inputState.clearInput()
-                    },
-                    onUpdateChatModel = {
-                        vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
-                    },
-                    onUpdateAssistant = { updated ->
-                        setting.assistants.find { it.id == updated.id }?.let { previous ->
-                            vm.updateAssistant(previous, updated)
-                        }
-                    },
-                    onUpdateSearchService = { index ->
-                        vm.updateSettings(
-                            setting.copy(
-                                searchServiceSelected = index
+                            inputState.clearInput()
+                        },
+                        onUpdateChatModel = {
+                            vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
+                        },
+                        onUpdateAssistant = { updated ->
+                            setting.assistants.find { it.id == updated.id }?.let { previous ->
+                                vm.updateAssistant(previous, updated)
+                            }
+                        },
+                        onUpdateSearchService = { index ->
+                            vm.updateSettings(
+                                setting.copy(
+                                    searchServiceSelected = index
+                                )
                             )
-                        )
-                    },
-                    onCompressContext = { additionalPrompt, targetTokens, keepRecentMessages ->
-                        vm.handleCompressContext(additionalPrompt, targetTokens, keepRecentMessages)
-                    },
-                )
+                        },
+                        onCompressContext = { additionalPrompt, targetTokens, keepRecentMessages ->
+                            vm.handleCompressContext(additionalPrompt, targetTokens, keepRecentMessages)
+                        },
+                    )
+                }
             },
             containerColor = Color.Transparent,
         ) { innerPadding ->
@@ -511,7 +591,14 @@ private fun ChatPageContent(
                 ChatList(
                     innerPadding = innerPadding,
                     conversation = conversation,
+                    reactions = reactions,
+                    onReact = vm::toggleReaction,
+                    onAvatarInteraction = vm::interactWithAvatar,
                     state = chatListState,
+                    pendingSentMessageId = pendingSentMessageId,
+                    onSentMessageShown = { shownId ->
+                        if (pendingSentMessageId == shownId) pendingSentMessageId = null
+                    },
                     loading = loadingJob != null && !blockedChatState.waiting,
                     processingStatus = if (blockedChatState.waiting) null else processingStatus,
                     previewMode = previewMode,
@@ -580,6 +667,7 @@ private fun ChatPageContent(
                     onToggleFavorite = { node ->
                         vm.toggleMessageFavorite(node)
                     },
+                    onSaveSummary = vm::handleSummaryEdit,
                     onConversationSystemPromptChange = { newPrompt ->
                         vm.updateConversation(conversation.copy(customSystemPrompt = newPrompt))
                         vm.saveConversationAsync()
@@ -611,6 +699,12 @@ private fun TopBar(
     }
 
     TopAppBar(
+        modifier =
+            Modifier.themeMaterial(
+                shape = androidx.compose.ui.graphics.RectangleShape,
+                tint = MaterialTheme.colorScheme.surfaceContainer,
+                role = MaterialRole.CARD,
+            ),
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
         navigationIcon = {
             if (!bigScreen) {
@@ -652,8 +746,7 @@ private fun TopBar(
                             maxLines = 1,
                             color = LocalContentColor.current.copy(0.65f),
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 8.sp,
-                            )
+                                fontSize = 8.sp)
                         )
                     }
                 }

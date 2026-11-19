@@ -2,6 +2,7 @@ package me.rerere.rikkahub.data.ai
 
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import me.rerere.rikkahub.data.ai.tools.ToolDiscoverySession
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.UIMessage
@@ -35,6 +36,7 @@ internal suspend fun runGenerationToolLoop(
     executeTool: suspend (UIMessagePart.Tool, Tool?, Int) -> UIMessagePart.Tool?,
     onToolsUpdated: suspend (List<UIMessage>, GenerationToolUpdate) -> Unit,
     onStep: suspend (Int, Boolean) -> Unit = { _, _ -> },
+    discovery: ToolDiscoverySession? = null,
 ): List<UIMessage> {
     var messages = initialMessages
     val steps = if (reserveFinalModelTurn) 0..maxSteps else 0 until maxSteps
@@ -42,7 +44,7 @@ internal suspend fun runGenerationToolLoop(
         currentCoroutineContext().ensureActive()
         val finalTurn = reserveFinalModelTurn && step == maxSteps
         onStep(step, finalTurn)
-        val definitions = toolsForStep(step)
+        val available = toolsForStep(step)
         // Approval pauses the whole batch, including Auto calls. Resume every unfinished
         // call through the approval policy before requesting another model turn.
         val unfinished = if (resumeApprovedTools) {
@@ -51,6 +53,7 @@ internal suspend fun runGenerationToolLoop(
             emptyList()
         }
 
+        val definitions = discovery?.expose(available, unfinished.map { it.toolName }.toSet()) ?: available
         val generated = if (unfinished.isEmpty()) {
             messages = generateTurn(messages, definitions, step)
             messages.lastOrNull()?.getTools()?.filter { !it.isExecuted }.orEmpty()
@@ -59,7 +62,13 @@ internal suspend fun runGenerationToolLoop(
         }
         if (generated.isEmpty()) return messages
         if (finalTurn) error(toolLimitError)
-        val approval = prepareTools(generated, definitions)
+        val missingNames = generated.map { it.toolName }.toSet() - definitions.map { it.name }.toSet()
+        val executionDefinitions = if (discovery != null && generated.none { it.toolName == ToolDiscoverySession.ENTRY } && missingNames.any { name -> available.any { it.name == name } }) {
+            discovery.expose(available, missingNames)
+        } else {
+            definitions
+        }
+        val approval = prepareTools(generated, executionDefinitions)
         if (approval.calls != generated) {
             messages = replaceGenerationTools(messages, approval.calls)
             onToolsUpdated(messages, GenerationToolUpdate.APPROVAL)
@@ -70,7 +79,7 @@ internal suspend fun runGenerationToolLoop(
         val results = mutableListOf<UIMessagePart.Tool>()
         for (call in calls) {
             currentCoroutineContext().ensureActive()
-            executeTool(call, definitions.find { it.name == call.toolName }, step)?.let(results::add)
+            executeTool(call, executionDefinitions.find { it.name == call.toolName }, step)?.let(results::add)
         }
         if (results.isEmpty()) return messages
         messages = replaceGenerationTools(messages, results)

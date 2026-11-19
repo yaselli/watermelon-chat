@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
+import me.rerere.rikkahub.ui.theme.MaterialCard as Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -70,6 +70,7 @@ private val LocalCardColor = staticCompositionLocalOf { Color.White }
  * @param steps 需要渲染的步骤数据列表
  * @param collapsedVisibleCount 折叠时保留可见的尾部步骤数
  * @param collapsedAdaptiveWidth 是否在折叠态下使用内容自适应宽度
+ * @param animateSizeChanges 是否补间卡片高度，流式输出时可关闭
  * @param content 每个步骤的具体 UI，由 [ChainOfThoughtScope] 提供步骤构建能力
  */
 @Composable
@@ -81,6 +82,7 @@ fun <T> ChainOfThought(
     steps: List<T>,
     collapsedVisibleCount: Int = 2,
     collapsedAdaptiveWidth: Boolean = false,
+    animateSizeChanges: Boolean = true,
     content: @Composable ChainOfThoughtScope.(T) -> Unit
 ) {
     val settings = LocalSettings.current
@@ -109,8 +111,12 @@ fun <T> ChainOfThought(
             Column(
                 modifier = Modifier
                     .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .animateContentSize(
-                        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
+                    .then(
+                        if (animateSizeChanges) {
+                            Modifier.animateContentSize(
+                                animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
+                            )
+                        } else Modifier
                     ),
             ) {
                 val visibleSteps = if (expanded || !canCollapse) {
