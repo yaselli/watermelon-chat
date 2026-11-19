@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - feature/role-coread-240
       - feature/liquid-glass-ui
       - refactor/shared-generation-turn
       - refactor/shared-tool-loop

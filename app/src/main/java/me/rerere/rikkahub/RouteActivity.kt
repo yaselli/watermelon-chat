@@ -747,6 +747,8 @@ entry<Screen.Extensions> {
                                 me.rerere.rikkahub.workflow.ui.WorkflowDetailScreen(key.id)
                             }
 
+                            entry<Screen.Coread> { CoreadPage() }
+
                             entry<Screen.SettingPlugins> {
                                 val nav = LocalNavController.current
                                 me.rerere.rikkahub.plugin.ui.PluginManagePage(
@@ -1128,6 +1130,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Health : Screen
+
+    @Serializable
+    data object Coread : Screen
 
     @Serializable
     data object SettingPlugins : Screen
