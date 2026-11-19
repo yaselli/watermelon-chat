@@ -33,6 +33,7 @@ import java.io.IOException
 internal class InteractionsAPI(
     private val client: OkHttpClient,
     private val keyRoulette: KeyRoulette = KeyRoulette.default(),
+    private val authorizeVertex: suspend (ProviderSetting.Google, Request) -> Request = { _, _ -> error("Vertex authorization unavailable") },
 ) {
     suspend fun generateText(
         provider: ProviderSetting.Google, messages: List<UIMessage>, params: TextGenerationParams,
@@ -73,15 +74,18 @@ internal class InteractionsAPI(
         awaitClose { source.cancel() }
     }.buffer(Channel.UNLIMITED)
 
-    private fun request(provider: ProviderSetting.Google, params: TextGenerationParams, body: JsonObject): Request {
-        require(!provider.vertexAI) { "Interactions mode is for the Gemini API; disable it for Vertex AI" }
+    private suspend fun request(provider: ProviderSetting.Google, params: TextGenerationParams, body: JsonObject): Request {
+        val url = if (provider.vertexAI) {
+            val host = if (provider.location == "global") "aiplatform.googleapis.com" else "aiplatform.${provider.location}.rep.googleapis.com"
+            "https://$host/v1/projects/${provider.projectId}/locations/${provider.location}/interactions"
+        } else "${provider.baseUrl.trimEnd('/')}/interactions"
+        val builder = Request.Builder().url(url).headers(params.customHeaders.toHeaders())
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .configureReferHeaders(provider.baseUrl)
+        if (provider.vertexAI) return authorizeVertex(provider, builder.removeHeader("Authorization").build())
         val key = keyRoulette.next(provider.apiKey, provider.id.toString())
         require(key.isNotBlank()) { "Gemini API key is required" }
-        return Request.Builder().url("${provider.baseUrl.trimEnd('/')}/interactions")
-            .headers(params.customHeaders.toHeaders())
-            .header("x-goog-api-key", key)
-            .post(body.toString().toRequestBody("application/json".toMediaType()))
-            .configureReferHeaders(provider.baseUrl).build()
+        return builder.header("x-goog-api-key", key).build()
     }
 
     internal fun buildRequestBody(messages: List<UIMessage>, params: TextGenerationParams, stream: Boolean): JsonObject {

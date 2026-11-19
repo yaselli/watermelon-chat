@@ -13,6 +13,7 @@ object ToolDiscoveryPolicy {
         setOf(
             "memory_tool",
             "avatar_interaction",
+            "find_chat_sticker",
             "message_reaction",
             "shared_music",
             "search_web",

@@ -38,6 +38,14 @@ fun ZoomableAsyncImage(
     alpha: Float = DefaultAlpha,
 ) {
     var showImageViewer by remember { mutableStateOf(false) }
+    val label = contentDescription.orEmpty().removePrefix("[")
+    if (model != null && label.startsWith(me.rerere.rikkahub.data.model.ChatSticker.PREFIX)) {
+        me.rerere.rikkahub.ui.components.ai.StickerImage(
+            model, label, Modifier.clickable { showImageViewer = true }, inChat = true,
+        )
+        if (showImageViewer) ImagePreviewDialog(images = listOf(me.rerere.rikkahub.ui.components.ai.stickerImageSource(LocalContext.current, model))) { showImageViewer = false }
+        return
+    }
     val context = LocalContext.current
     val placeholder = if(LocalDarkMode.current) R.drawable.placeholder_dark else R.drawable.placeholder
     val export = LocalExportContext.current

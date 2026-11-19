@@ -62,7 +62,13 @@ internal suspend fun runGenerationToolLoop(
         }
         if (generated.isEmpty()) return messages
         if (finalTurn) error(toolLimitError)
-        val approval = prepareTools(generated, definitions)
+        val missingNames = generated.map { it.toolName }.toSet() - definitions.map { it.name }.toSet()
+        val executionDefinitions = if (discovery != null && generated.none { it.toolName == ToolDiscoverySession.ENTRY } && missingNames.any { name -> available.any { it.name == name } }) {
+            discovery.expose(available, missingNames)
+        } else {
+            definitions
+        }
+        val approval = prepareTools(generated, executionDefinitions)
         if (approval.calls != generated) {
             messages = replaceGenerationTools(messages, approval.calls)
             onToolsUpdated(messages, GenerationToolUpdate.APPROVAL)
@@ -73,7 +79,7 @@ internal suspend fun runGenerationToolLoop(
         val results = mutableListOf<UIMessagePart.Tool>()
         for (call in calls) {
             currentCoroutineContext().ensureActive()
-            executeTool(call, definitions.find { it.name == call.toolName }, step)?.let(results::add)
+            executeTool(call, executionDefinitions.find { it.name == call.toolName }, step)?.let(results::add)
         }
         if (results.isEmpty()) return messages
         messages = replaceGenerationTools(messages, results)

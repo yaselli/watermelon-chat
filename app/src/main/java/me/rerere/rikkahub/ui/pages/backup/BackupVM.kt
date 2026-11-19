@@ -8,6 +8,17 @@ package me.rerere.rikkahub.ui.pages.backup
 
 import android.util.Log
 import android.net.Uri
+import android.app.Application
+import androidx.core.net.toUri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
+import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.saveUploadFromBytes
+import me.rerere.rikkahub.data.model.bindConfig
+import me.rerere.rikkahub.data.sync.importer.DeepSeekImporter
+import me.rerere.rikkahub.data.sync.importer.DeepSeekImportResult
 import me.rerere.rikkahub.data.backup.AutoBackupStore
 import me.rerere.rikkahub.data.backup.AutoBackupConfig
 import me.rerere.rikkahub.data.backup.AutoBackupState
@@ -35,6 +46,8 @@ import java.io.File
 private const val TAG = "BackupVM"
 
 class BackupVM(
+    private val context: Application,
+    private val filesManager: FilesManager,
     private val settingsStore: SettingsStore,
     private val webDavSync: WebDavSync,
     private val s3Sync: S3Sync,
@@ -187,6 +200,29 @@ class BackupVM(
             skippedExistingConversations = skippedExistingConversations,
             skippedImageParts = payload.conversations.skippedImageParts,
             skippedEmptyMessages = payload.conversations.skippedEmptyMessages,
+        )
+    }
+
+    suspend fun restoreFromDeepSeek(file: File): DeepSeekImportResult = withContext(Dispatchers.IO) {
+        val currentSettings = settingsStore.settingsFlowRaw.first()
+        DeepSeekImporter.importStreaming(
+            file = file,
+            assistantId = currentSettings.assistantId,
+            shouldImportConversation = { !conversationRepository.existsConversationById(it) },
+            formatMissingAttachment = { name ->
+                context.getString(R.string.backup_page_import_deepseek_missing_attachment, name)
+            },
+            saveAttachment = { resource ->
+                val entity = filesManager.saveUploadFromBytes(
+                    bytes = resource.bytes,
+                    displayName = resource.fileName,
+                    mimeType = resource.mimeType,
+                )
+                filesManager.getFile(entity).toUri().toString()
+            },
+            onConversation = { conversation ->
+                conversationRepository.insertConversation(conversation.bindConfig(currentSettings))
+            },
         )
     }
 
