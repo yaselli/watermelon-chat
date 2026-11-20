@@ -6,7 +6,7 @@
 
 package me.rerere.rikkahub.web.routes
 
-import me.rerere.rikkahub.data.ai.account.withoutAccountCredentials
+import kotlinx.serialization.json.encodeToJsonElement
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -206,7 +206,7 @@ fun Route.settingsRoutes(
             }
             settingsStore.settingsFlow
                 .collect { settings ->
-                    val json = JsonInstant.encodeToString(settings.withoutAccountCredentials())
+                    val json = webSettingsSnapshot(JsonInstant.encodeToJsonElement(settings)).toString()
                     send(data = json, event = "update")
                 }
         }

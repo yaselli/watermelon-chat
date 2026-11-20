@@ -113,6 +113,10 @@ fun SettingWebPage() {
     var showPublicRiskDialog by remember { mutableStateOf(false) }
 
     fun startWebServer() {
+        if (!settings.webServerLocalhostOnly && (!settings.webServerJwtEnabled || settings.webServerAccessPassword.isBlank())) {
+            toaster.show("局域网访问需要先设置访问密码并开启登录验证")
+            return
+        }
         val intent = Intent(context, WebServerService::class.java).apply {
             action = WebServerService.ACTION_START
             putExtra(WebServerService.EXTRA_PORT, settings.webServerPort)
@@ -298,7 +302,7 @@ fun SettingWebPage() {
                                         }
                                     }
                                 },
-                                enabled = settings.webServerJwtEnabled || accessPasswordText.isNotBlank(),
+                                enabled = !serverState.isRunning && (settings.webServerJwtEnabled || accessPasswordText.isNotBlank()),
                             )
                         },
                     )
@@ -308,6 +312,7 @@ fun SettingWebPage() {
                         trailingContent = {
                             TextField(
                                 value = accessPasswordText,
+                                enabled = !serverState.isRunning,
                                 onValueChange = { value ->
                                     accessPasswordText = value
                                     scope.launch {
