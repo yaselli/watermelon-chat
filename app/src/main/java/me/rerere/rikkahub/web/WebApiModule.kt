@@ -66,9 +66,9 @@ fun Application.configureWebApi(
     chatService: ChatService,
     conversationRepo: ConversationRepository,
     settingsStore: SettingsStore,
-    filesManager: FilesManager
+    filesManager: FilesManager,
+    jwtEnabled: Boolean,
 ) {
-    val jwtEnabled = settingsStore.settingsFlow.value.webServerJwtEnabled
 
     install(ContentNegotiation) {
         json(JsonInstant)
