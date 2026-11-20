@@ -176,7 +176,7 @@ class ProactiveMessageService {
             Log.d(TAG, "Scheduled proactive message in $delayMinutes minutes, trigger at ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(triggerTime))}")
 
             // Also schedule via WorkManager as a more reliable fallback
-            ProactiveMessageWorker.scheduleNext(context, setting, delayMinutes)
+            ProactiveMessageWorker.scheduleNext(context, setting, triggerTimeMillis = triggerTime)
         }
 
         fun getNextTriggerTime(context: Context): Long? {
