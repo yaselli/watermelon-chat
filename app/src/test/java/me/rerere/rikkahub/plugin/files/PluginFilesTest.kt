@@ -130,6 +130,23 @@ class PluginFilesTest {
         assertFalse(File(outside, "file").exists())
     }
 
+    @Test
+    fun `stream copies accept the exact limit and reject excess bytes before writing them`() {
+        val output = java.io.ByteArrayOutputStream()
+        val bytes = byteArrayOf(1, 2, 3)
+        assertEquals(3L, copyPluginBytes(bytes.inputStream(), output, 3))
+        assertArrayEquals(bytes, output.toByteArray())
+        output.reset()
+        rejected { copyPluginBytes(bytes.inputStream(), output, 2) }
+        assertTrue(output.size() <= 2)
+    }
+
+    @Test
+    fun `nested plugin manifest has a separate expanded size limit`() {
+        val zip = archive("plugin/manifest.json" to "x".repeat(1024 * 1024 + 1))
+        rejected { extractPluginZip(zip, temporary.newFolder()) }
+    }
+
     private fun archive(vararg entries: Pair<String, String>): File {
         val archive = temporary.newFile()
         ZipOutputStream(archive.outputStream()).use { output ->
