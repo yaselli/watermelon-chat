@@ -29,7 +29,9 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
+import java.io.InputStream
+import java.util.zip.ZipFile
+import me.rerere.rikkahub.data.backup.BackupAttachmentPaths
 import java.util.zip.ZipOutputStream
 
 private const val TAG = "S3Sync"
@@ -191,10 +193,10 @@ class S3Sync(
         BackupIoLock.run {
             Log.i(TAG, "restoreFromBackupFile: Starting restore from ${backupFile.absolutePath}")
 
-            ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
-                var entry: ZipEntry?
-                while (zipIn.nextEntry.also { entry = it } != null) {
-                    entry?.let { zipEntry ->
+            ZipFile(backupFile).use { archive ->
+                BackupAttachmentPaths.validate(archive, context.filesDir)
+                for (zipEntry in archive.entries()) {
+                    archive.getInputStream(zipEntry).use { zipIn ->
                         Log.i(TAG, "restoreFromBackupFile: Processing entry ${zipEntry.name}")
 
                         when (zipEntry.name) {
@@ -258,7 +260,7 @@ class S3Sync(
                                             Log.i(TAG, "restoreFromBackupFile: Created upload directory")
                                         }
 
-                                        val targetFile = File(uploadFolder, fileName)
+                                        val targetFile = BackupAttachmentPaths.resolve(context.filesDir, fileName)
                                         Log.i(
                                             TAG,
                                             "restoreFromBackupFile: Restoring file ${zipEntry.name} to ${targetFile.absolutePath}"
@@ -291,7 +293,6 @@ class S3Sync(
                             }
                         }
 
-                        zipIn.closeEntry()
                     }
                 }
             }
@@ -331,7 +332,7 @@ class S3Sync(
         }
     }
 
-    private fun restoreSkillEntry(zipIn: ZipInputStream, entryName: String) {
+    private fun restoreSkillEntry(zipIn: InputStream, entryName: String) {
         val relativePath = entryName.substringAfter("${FileFolders.SKILLS}/")
         val skillName = relativePath.substringBefore('/', missingDelimiterValue = "")
         val skillRelativePath = relativePath.substringAfter('/', missingDelimiterValue = "")
