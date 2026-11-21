@@ -15,6 +15,8 @@ import me.rerere.rikkahub.plugin.model.PluginInfo
 import me.rerere.rikkahub.plugin.model.PluginManifest
 import java.io.File
 import java.io.FileOutputStream
+import me.rerere.rikkahub.plugin.files.MAX_PLUGIN_ARCHIVE_BYTES
+import me.rerere.rikkahub.plugin.files.copyPluginBytes
 import me.rerere.rikkahub.plugin.files.extractPluginZip
 import me.rerere.rikkahub.plugin.files.pluginDirectory
 import me.rerere.rikkahub.plugin.files.requirePluginId
@@ -134,7 +136,7 @@ class PluginScanner(
             val archive = File.createTempFile("plugin_preview_", ".zip", context.cacheDir)
             tempFile = archive
             context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(archive).use { output -> input.copyTo(output) }
+                FileOutputStream(archive).use { output -> copyPluginBytes(input, output, MAX_PLUGIN_ARCHIVE_BYTES) }
             } ?: error("无法读取文件")
 
             val directory = Files.createTempDirectory(context.cacheDir.toPath(), "plugin_preview_").toFile()
