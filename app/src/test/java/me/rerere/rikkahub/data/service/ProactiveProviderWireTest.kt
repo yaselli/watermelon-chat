@@ -17,7 +17,7 @@ import org.junit.Test
 class ProactiveProviderWireTest {
     private val model = Model(modelId = "gemini-3.8-flash")
 
-    private fun wire(messages: List<UIMessage>, google: Boolean): JsonArray {
+    private fun wire(messages: List<UIMessage>, google: Boolean, requestModel: Model = model): JsonArray {
         val client = OkHttpClient()
         return if (google) {
             val provider = GoogleProvider(client)
@@ -30,8 +30,22 @@ class ProactiveProviderWireTest {
                 "buildMessages", List::class.java, Model::class.java,
             )
             method.isAccessible = true
-            method.invoke(provider, messages, model) as JsonArray
+            method.invoke(provider, messages, requestModel) as JsonArray
         }
+    }
+
+    @Test
+    fun `DeepSeek wire appends event after the unchanged historical prefix and preserves tool result pairing`() {
+        val deepseek = Model(modelId = "deepseek-chat")
+        val history = listOf(UIMessage.user("晚安"), UIMessage.assistant("八点叫你"))
+        val helper = ProactiveProviderRequest.create(history, deepseek.modelId, false)!!
+        val original = wire(history, false, deepseek)
+        val request = wire(helper.applyTo(history), false, deepseek)
+        assertEquals(original, JsonArray(request.dropLast(1)))
+        assertEquals("user", request.last().jsonObject["role"]!!.jsonPrimitive.content)
+        val toolRequest = wire(helper.applyTo(history + toolTurn()), false, deepseek)
+        assertEquals("tool", toolRequest.last().jsonObject["role"]!!.jsonPrimitive.content)
+        assertEquals("call_now", toolRequest.last().jsonObject["tool_call_id"]!!.jsonPrimitive.content)
     }
 
     @Test

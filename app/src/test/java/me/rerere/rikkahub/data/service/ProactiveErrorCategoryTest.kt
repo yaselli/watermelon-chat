@@ -15,4 +15,11 @@ class ProactiveErrorCategoryTest {
             RuntimeException("empty_stream: private upstream response")
         ))
     }
+    @Test fun providerAndNetworkFailuresHaveSafeCategories() {
+        assertEquals("provider_error", ProactiveMessageTrace.errorCategory(
+            me.rerere.ai.util.HttpException("private upstream body")
+        ))
+        assertEquals("network", ProactiveMessageTrace.errorCategory(java.io.IOException("private URL")))
+        assertEquals("timeout", ProactiveMessageTrace.errorCategory(java.net.SocketTimeoutException()))
+    }
 }

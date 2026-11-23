@@ -138,6 +138,22 @@ class ProactiveWakeupTest {
     }
 
     @Test
+    fun `failed appointment shows a safe failure category and supports older callers`() {
+        val active = wakeup().copy(status = ProactiveWakeupStatus.Running)
+        val s = setting(active)
+        assertEquals("模型接口返回错误，请查看请求日志",
+            s.finishWakeup(active.id, "failed", now, "provider_error").aiWakeups.single().outcome)
+        assertEquals("模型请求超时，可重新安排",
+            s.finishWakeup(active.id, "failed", now, "timeout").aiWakeups.single().outcome)
+        assertEquals("网络连接失败，可重新安排",
+            s.finishWakeup(active.id, "failed", now, "network").aiWakeups.single().outcome)
+        assertEquals("唤醒执行失败，请查看日志",
+            s.finishWakeup(active.id, "failed", now, "arbitrary secret").aiWakeups.single().outcome)
+        assertEquals(ProactiveWakeupStatus.Failed,
+            s.finishWakeup(active.id, "failed", now).aiWakeups.single().status)
+    }
+
+    @Test
     fun `busy conversation or quiet window preserves the appointment with a short defer`() {
         val active = wakeup().copy(status = ProactiveWakeupStatus.Running)
         val s = setting(active).finishWakeup(active.id, "generation_busy", now)

@@ -82,6 +82,8 @@ internal class ProactiveMessageTrace private constructor(
             error is kotlinx.coroutines.CancellationException -> "cancelled"
             error is java.net.SocketTimeoutException -> "timeout"
             error.message.orEmpty().contains("empty_stream", ignoreCase = true) -> "empty_stream"
+            error is me.rerere.ai.util.HttpException -> "provider_error"
+            error is java.io.IOException -> "network"
             else -> "other"
         }
 

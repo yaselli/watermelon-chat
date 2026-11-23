@@ -1118,6 +1118,7 @@ class ProactiveMessageTriggerService : android.app.Service(), KoinComponent {
                                                 appointment.id,
                                                 outcome,
                                                 System.currentTimeMillis(),
+                                                failureCategory = failure?.let(ProactiveMessageTrace::errorCategory),
                                             )
                                     )
                                 }
@@ -1567,9 +1568,10 @@ class ProactiveMessageTriggerService : android.app.Service(), KoinComponent {
             history = initialMessages,
             modelId = model.modelId,
             googleProvider = providerSetting is ProviderSetting.Google,
+            deepSeekProvider = isDeepSeekCompatible(providerSetting, model),
         )
         if (providerRequest != null) {
-            trace.event("provider_compat", "gemini_background_event=true")
+            trace.event("provider_compat", "background_event=true")
         }
         var hasToolCalls = false
         var hasJumpFlag = false

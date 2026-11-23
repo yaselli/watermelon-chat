@@ -62,6 +62,7 @@ internal fun ProactiveMessageSetting.finishWakeup(
     id: String,
     outcome: String,
     now: Long,
+    failureCategory: String? = null,
 ): ProactiveMessageSetting =
     copy(
         aiWakeups =
@@ -95,6 +96,15 @@ internal fun ProactiveMessageSetting.finishWakeup(
                                             "pass",
                                             "wait",
                                             "stop" -> "AI 本次未发送正文，可重新安排"
+                                            "failed" -> when (failureCategory) {
+                                                "provider_error" -> "模型接口返回错误，请查看请求日志"
+                                                "timeout" -> "模型请求超时，可重新安排"
+                                                "network" -> "网络连接失败，可重新安排"
+                                                "empty_stream" -> "模型未返回有效内容，可重新安排"
+                                                else -> "唤醒执行失败，请查看日志"
+                                            }
+                                            "no_assistant" -> "原角色已不存在"
+                                            "no_provider" -> "未找到模型服务商配置"
                                             else -> "唤醒未完成，可重新安排"
                                         },
                                 )
