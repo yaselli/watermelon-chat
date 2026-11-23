@@ -59,7 +59,7 @@ class ProactiveProviderRequestTest {
     @Test
     fun `other providers retain their original request format`() {
         val history = listOf(UIMessage.user("你好"), reply("你好呀"))
-        listOf("kimi-k3", "deepseek-chat", "gpt-5", "claude-sonnet").forEach { modelId ->
+        listOf("kimi-k3", "gpt-5", "claude-sonnet").forEach { modelId ->
             assertNull(ProactiveProviderRequest.create(history, modelId, false))
         }
     }
@@ -83,6 +83,29 @@ class ProactiveProviderRequestTest {
         val request = ProactiveProviderRequest.create(history, "gemini-3.8-flash", false)!!
         val differentHistory = listOf(reply("另一段上下文"))
         assertSame(differentHistory, request.applyTo(differentHistory))
+    }
+
+    @Test
+    fun `DeepSeek models and provider aliases receive one stable event across tool rounds`() {
+        val history = listOf(UIMessage.user("晚安"), reply("八点叫你"))
+        for (model in listOf("deepseek-chat", "deepseek-reasoner", "custom-alias")) {
+            val request = ProactiveProviderRequest.create(
+                history, model, false, deepSeekProvider = true,
+            )!!
+            val first = request.applyTo(history)
+            assertEquals(history, first.dropLast(1))
+            assertEquals(MessageRole.USER, first.last().role)
+            assertSame(first, request.applyTo(first))
+            val tool = UIMessage(role = MessageRole.ASSISTANT, parts = listOf(UIMessagePart.Tool(
+                toolCallId = "time", toolName = "get_time_info", input = "{}",
+                output = listOf(UIMessagePart.Text("08:00")),
+            )))
+            val next = request.applyTo(history + tool)
+            assertSame(tool, next.last())
+            assertEquals(first.last().id, next[next.lastIndex - 1].id)
+        }
+        assertNotNull(ProactiveProviderRequest.create(history, "DeepSeek-flash", false))
+        assertNull(ProactiveProviderRequest.create(listOf(UIMessage.user("你好")), "deepseek-chat", false))
     }
 
     private fun reply(text: String) = UIMessage(

@@ -6,7 +6,7 @@ import me.rerere.ai.ui.UIMessagePart
 import kotlin.uuid.Uuid
 
 /**
- * Gemini rejects requests ending in a model turn. Proactive history normally ends in the
+ * Gemini and DeepSeek require a new input turn after the previous assistant reply. Proactive history normally ends in the
  * assistant's last reply, unlike normal chat, which has a new user turn.
  *
  * The USER transport role below represents an explicitly labelled system event, never a real
@@ -47,8 +47,12 @@ internal class ProactiveProviderRequest private constructor(
             history: List<UIMessage>,
             modelId: String,
             googleProvider: Boolean,
+            deepSeekProvider: Boolean = false,
         ): ProactiveProviderRequest? {
-            if (!googleProvider && !modelId.contains("gemini", ignoreCase = true)) return null
+            val needsEvent = googleProvider || deepSeekProvider ||
+                modelId.contains("gemini", ignoreCase = true) ||
+                modelId.contains("deepseek", ignoreCase = true)
+            if (!needsEvent) return null
             val tail = history.lastOrNull()?.takeIf { it.role == MessageRole.ASSISTANT } ?: return null
             return ProactiveProviderRequest(
                 historyTailId = tail.id,
