@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.data.interaction
 
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.add
@@ -16,6 +17,7 @@ fun buildChatInteractionTools(
     assistant: Assistant,
     onAvatar: suspend () -> String,
     onReaction: suspend (String, String, Boolean, String) -> Unit,
+    onUpdateOwnAvatar: (suspend (String?, String?) -> Assistant)? = null,
 ): List<Tool> = buildList {
     if (assistant.enableAvatarInteractions) add(Tool(
         name = "avatar_interaction",
@@ -26,6 +28,45 @@ fun buildChatInteractionTools(
             val text = onAvatar()
             listOf(UIMessagePart.Text(buildJsonObject {
                 put("actor", "assistant"); put("target", "user"); put("text", text)
+            }.toString()))
+        },
+    ))
+    if (assistant.enableAvatarInteractions && onUpdateOwnAvatar != null) add(Tool(
+        name = "update_avatar_interaction",
+        description = "修改你自己被用户双击头像（拍一拍）时显示的动作与后缀，并保存到当前角色设置。" +
+            "例如动作「揉了揉」、后缀「的脑袋」会显示为「你揉了揉角色名的脑袋」。" +
+            "至少提供一项，省略的项保持当前值；空后缀表示清空。按用户要求或聊天情境自然使用。",
+        parameters = {
+            InputSchema.Obj(properties = buildJsonObject {
+                put("action", buildJsonObject {
+                    put("type", "string")
+                    put("minLength", 1)
+                    put("maxLength", 20)
+                    put("description", "动作，例如拍了拍、揉了揉，1–20 个字")
+                })
+                put("suffix", buildJsonObject {
+                    put("type", "string")
+                    put("maxLength", 80)
+                    put("description", "接在你名字后面的文案，最多 80 个字；空字符串清空")
+                })
+            }, required = emptyList())
+        },
+        execute = { input ->
+            val values = input.jsonObject
+            require(values["action"]?.let { it is JsonPrimitive && it.isString } != false) { "动作需为文本" }
+            require(values["suffix"]?.let { it is JsonPrimitive && it.isString } != false) { "后缀需为文本" }
+            val action = values["action"]?.jsonPrimitive?.contentOrNull
+            val suffix = values["suffix"]?.jsonPrimitive?.contentOrNull
+            require(action != null || suffix != null) { "请提供动作或后缀" }
+            require(action == null || action.isNotBlank() && action.length <= 20) { "互动动作需为 1–20 个字" }
+            require(suffix == null || suffix.length <= 80) { "互动后缀最多 80 个字" }
+            val updated = onUpdateOwnAvatar(action?.trim(), suffix?.trim())
+            listOf(UIMessagePart.Text(buildJsonObject {
+                put("success", true)
+                put("action", updated.userInteractionAction)
+                put("suffix", updated.userInteractionSuffix)
+                put("preview", interactionText("你", updated.name.ifBlank { "AI" },
+                    updated.userInteractionAction, updated.userInteractionSuffix))
             }.toString()))
         },
     ))
