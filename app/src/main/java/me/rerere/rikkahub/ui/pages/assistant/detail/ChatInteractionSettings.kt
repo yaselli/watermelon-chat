@@ -29,7 +29,7 @@ internal fun ChatInteractionSettings(assistant: Assistant, onEdit: ((Assistant) 
     CardGroup {
         item(
             headlineContent = { Text("头像互动") },
-            supportingContent = { Text("双击头像互动，AI 也能调用工具对你使用。双击会触发一次回复。") },
+            supportingContent = { Text("双击头像互动，AI 可对你使用，也能修改自己被拍时的文案。双击会触发一次回复。") },
             trailingContent = { Switch(assistant.enableAvatarInteractions, {
                 onEdit { current -> current.copy(enableAvatarInteractions = it) }
             }) },
