@@ -51,7 +51,7 @@ jobs:
       - name: Test app and providers and run Android Lint
         run: |
           chmod +x gradlew
-          ./gradlew :ai:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug --continue
+          ./gradlew :ai:testDebugUnitTest :speech:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug --continue
       - name: Upload verification results
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,7 +91,7 @@ jobs:
 
   everyday-preview:
     needs: checks
-    if: (github.head_ref == 'ui/everyday-chat-mode' || github.head_ref == 'ui/global-appearance' || github.head_ref == 'fix/material-rendering-flicker' || github.head_ref == 'release/chat-scroll-and-flicker' || github.head_ref == 'release/global-soft-shadow' || github.head_ref == 'release/drawer-transition' || github.head_ref == 'feature/local-stickers-240' || github.head_ref == 'release/proactive-deepseek') && github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.head_ref == 'ui/everyday-chat-mode' || github.head_ref == 'ui/global-appearance' || github.head_ref == 'fix/material-rendering-flicker' || github.head_ref == 'release/chat-scroll-and-flicker' || github.head_ref == 'release/global-soft-shadow' || github.head_ref == 'release/drawer-transition' || github.head_ref == 'feature/local-stickers-240' || github.head_ref == 'release/proactive-deepseek' || github.head_ref == 'feature/kitten-loading') && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -143,7 +143,7 @@ jobs:
       - name: Upload downloadable everyday chat test APKs
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.head_ref == 'release/proactive-deepseek' && 'Xiguaban-proactive-deepseek-debug' || github.head_ref == 'feature/local-stickers-240' && 'Xiguaban-2.4.0-stickers-debug' || github.head_ref == 'release/drawer-transition' && 'Xiguaban-drawer-transition-debug' || github.head_ref == 'release/global-soft-shadow' && 'Xiguaban-global-soft-shadow-debug' || github.head_ref == 'release/chat-scroll-and-flicker' && 'Xiguaban-chat-scroll-and-flicker-debug' || github.head_ref == 'fix/material-rendering-flicker' && 'Xiguaban-rendering-fix-debug' || github.head_ref == 'ui/global-appearance' && 'Xiguaban-global-appearance-debug' || 'Xiguaban-everyday-chat-debug' }}
+          name: ${{ github.head_ref == 'feature/kitten-loading' && 'Xiguaban-kitten-loading-debug' || github.head_ref == 'release/proactive-deepseek' && 'Xiguaban-proactive-deepseek-debug' || github.head_ref == 'feature/local-stickers-240' && 'Xiguaban-2.4.0-stickers-debug' || github.head_ref == 'release/drawer-transition' && 'Xiguaban-drawer-transition-debug' || github.head_ref == 'release/global-soft-shadow' && 'Xiguaban-global-soft-shadow-debug' || github.head_ref == 'release/chat-scroll-and-flicker' && 'Xiguaban-chat-scroll-and-flicker-debug' || github.head_ref == 'fix/material-rendering-flicker' && 'Xiguaban-rendering-fix-debug' || github.head_ref == 'ui/global-appearance' && 'Xiguaban-global-appearance-debug' || 'Xiguaban-everyday-chat-debug' }}
           path: everyday-preview/*
           if-no-files-found: error
           compression-level: 0

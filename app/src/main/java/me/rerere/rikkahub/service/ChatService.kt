@@ -1620,6 +1620,24 @@ class ChatService(
             check(!isChatBlocked(conversationId)) { "聊天已被拉黑" }
             chatInteractionRepository.react(conversationId, assistant, target, "assistant", emoji, add, quote)
         },
+        onUpdateOwnAvatar = { action, suffix ->
+            check(!isChatBlocked(conversationId)) { "聊天已被拉黑" }
+            var updated: Assistant? = null
+            settingsStore.update { current ->
+                val ownAssistant = current.assistants.firstOrNull { it.id == assistant.id }
+                    ?: error("当前角色已不存在")
+                check(ownAssistant.enableAvatarInteractions) { "头像互动已关闭" }
+                val changed = ownAssistant.copy(
+                    userInteractionAction = action ?: ownAssistant.userInteractionAction.ifBlank { "拍了拍" },
+                    userInteractionSuffix = suffix ?: ownAssistant.userInteractionSuffix,
+                )
+                interactionText("你", changed.name.ifBlank { "AI" },
+                    changed.userInteractionAction, changed.userInteractionSuffix)
+                updated = changed
+                current.copy(assistants = current.assistants.map { if (it.id == changed.id) changed else it })
+            }
+            checkNotNull(updated)
+        },
     )
 
     // ---- 检查无效消息 ----
