@@ -51,7 +51,7 @@ jobs:
       - name: Test app and providers and run Android Lint
         run: |
           chmod +x gradlew
-          ./gradlew :ai:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug --continue
+          ./gradlew :ai:testDebugUnitTest :speech:testDebugUnitTest :app:testDebugUnitTest :app:lintDebug --continue
       - name: Upload verification results
         if: always()
         uses: actions/upload-artifact@v4

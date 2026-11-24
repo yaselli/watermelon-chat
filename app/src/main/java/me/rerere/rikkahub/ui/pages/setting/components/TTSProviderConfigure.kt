@@ -14,21 +14,28 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.FormItem
 import me.rerere.rikkahub.ui.components.ui.OutlinedNumberInput
 import me.rerere.tts.provider.TTSProviderSetting
+import me.rerere.tts.provider.providers.ElevenLabsModelCatalog
+import me.rerere.tts.provider.providers.ElevenLabsModelsHttpException
 
 @Composable
 fun TTSProviderConfigure(
@@ -1036,11 +1043,46 @@ private fun ElevenLabsTTSConfiguration(
     }
 
     var modelExpanded by remember { mutableStateOf(false) }
-    val models = listOf("eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v3")
+    val catalog = remember { ElevenLabsModelCatalog() }
+    var models by remember(setting.id, setting.baseUrl, setting.apiKey) {
+        mutableStateOf(ElevenLabsModelCatalog.defaults)
+    }
+    var refreshCount by remember(setting.id, setting.baseUrl, setting.apiKey) { mutableIntStateOf(0) }
+    var refreshing by remember(setting.id, setting.baseUrl, setting.apiKey) { mutableStateOf(false) }
+    var refreshMessage by remember(setting.id, setting.baseUrl, setting.apiKey) { mutableStateOf<String?>(null) }
+    var refreshFailed by remember(setting.id, setting.baseUrl, setting.apiKey) { mutableStateOf(false) }
+
+    LaunchedEffect(setting.id, setting.baseUrl, setting.apiKey, refreshCount) {
+        if (refreshCount == 0) return@LaunchedEffect
+        refreshing = true
+        refreshMessage = null
+        refreshFailed = false
+        try {
+            val fetched = catalog.fetch(setting.baseUrl, setting.apiKey)
+            if (fetched.isEmpty()) {
+                refreshFailed = true
+                refreshMessage = "接口未返回语音合成模型，可继续手动填写模型 ID"
+            } else {
+                models = fetched
+                refreshMessage = "已获取 ${fetched.size} 个语音模型，当前填写的模型保持不变"
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            refreshFailed = true
+            refreshMessage = when ((e as? ElevenLabsModelsHttpException)?.statusCode) {
+                401, 403 -> "刷新失败，请检查 API Key 和模型访问权限"
+                429 -> "请求过于频繁，请稍后重试"
+                else -> "刷新失败，请检查 API 地址或网络后重试"
+            }
+        } finally {
+            refreshing = false
+        }
+    }
 
     FormItem(
         label = { Text(stringResource(R.string.setting_tts_page_model)) },
-        description = { Text(stringResource(R.string.setting_tts_page_model_description)) }
+        description = { Text("可手动填写模型 ID，或刷新官方模型列表") }
     ) {
         ExposedDropdownMenuBox(
             expanded = modelExpanded,
@@ -1072,6 +1114,23 @@ private fun ElevenLabsTTSConfiguration(
                     )
                 }
             }
+        }
+        TextButton(
+            onClick = { refreshCount++ },
+            enabled = !refreshing && setting.baseUrl.isNotBlank(),
+        ) {
+            Text(if (refreshing) "正在获取模型…" else "刷新模型")
+        }
+        refreshMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (refreshFailed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
         }
     }
 
