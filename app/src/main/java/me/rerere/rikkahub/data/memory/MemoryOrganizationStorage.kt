@@ -50,6 +50,7 @@ data class MemoryEvidence(
     val role: String,
     val sourceCreatedAt: String,
     val quote: String,
+    @androidx.room.ColumnInfo(defaultValue = "NULL") val archivedSource: String? = null,
 )
 
 @Dao
@@ -76,4 +77,17 @@ interface MemoryOrganizationDAO {
     @Query("SELECT e.* FROM memory_evidence e JOIN memoryentity m ON e.memoryId = m.id " +
         "WHERE e.memoryId IN (:ids) AND m.assistant_id = :scope AND m.revision = 1 AND m.source_kind = 'automatic'")
     suspend fun evidenceForRecall(ids: List<Int>, scope: String): List<MemoryEvidence>
+
+    @Query("SELECT e.* FROM memory_evidence e JOIN memoryentity m ON m.id = e.memoryId " +
+        "JOIN conversationentity c ON c.id = e.conversationId " +
+        "WHERE e.owner = :scope AND c.assistant_id = :scope AND m.assistant_id = :scope " +
+        "AND e.nodeId IN (:nodeIds) AND e.archivedSource IS NOT NULL")
+    suspend fun archivedEvidence(scope: String, nodeIds: List<String>): List<MemoryEvidence>
+
+    @Query("UPDATE memory_evidence SET archivedSource = :source WHERE owner = :owner " +
+        "AND conversationId = :conversationId AND nodeId = :nodeId AND messageId = :messageId " +
+        "AND sourceHash = :hash")
+    suspend fun retainSource(owner: String, conversationId: String, nodeId: String, messageId: String,
+        hash: String, source: String)
+
 }

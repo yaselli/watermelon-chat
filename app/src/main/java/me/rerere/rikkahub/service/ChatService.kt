@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -109,6 +109,8 @@ import me.rerere.rikkahub.data.model.selectCompactedContext
 import me.rerere.rikkahub.data.ai.compressContext
 import me.rerere.rikkahub.data.ai.contextSummaryMessage
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.planHistoryCleanup
+import me.rerere.rikkahub.data.model.withHistoryRemoved
 import me.rerere.rikkahub.data.model.localFileUrls
 import me.rerere.rikkahub.data.model.ConversationConfig
 import me.rerere.rikkahub.data.model.bindConfig
@@ -654,7 +656,7 @@ class ChatService(
     private fun dispatchNextQueuedMessage(id: Uuid) {
         val session = sessions[id] ?: return
         session.withGenerationLock {
-            if (session.getJob() != null || isChatBlocked(id)) return@withGenerationLock
+            if (session.historyMaintenance || session.getJob() != null || isChatBlocked(id)) return@withGenerationLock
             if (session.state.value.currentMessages.lastOrNull()?.getTools().orEmpty().any { !it.isExecuted }) {
                 session.messageQueue.failReplyWaiters("请先处理工具审批")
                 return@withGenerationLock
@@ -1909,6 +1911,59 @@ class ChatService(
                 } finally {
                     session.compactionMutex.unlock()
                 }
+            }
+        }
+        Result.success(Unit)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        Result.failure(failure)
+    }
+
+    /** Prepare a summary before removal, then validate the exact snapshot again under the save lock. */
+    suspend fun organizeConversationHistory(
+        expected: Conversation,
+        keep: Int,
+        destination: android.net.Uri?,
+    ): Result<Unit> = try {
+        val session = getOrCreateSession(expected.id)
+        session.withRefSuspend {
+            val plan = expected.planHistoryCleanup(keep)
+            check(!session.isGenerating && session.state.value.messageNodes == expected.messageNodes) {
+                "对话正在生成或已经变化，请稍后重新整理"
+            }
+            val existing = session.state.value.contextCompaction
+            if (existing?.matches(expected.currentMessages) != true || existing.coveredMessageCount < plan.removeCount) {
+                compressConversation(expected.id, expected, "保留继续聊天需要的事实、关系和未完成事项。",
+                    3000, plan.keepCount).getOrThrow()
+            }
+            val snapshot = session.state.value
+            check(snapshot.messageNodes == expected.messageNodes) { "对话已变化，请重新整理" }
+            val trimmed = snapshot.withHistoryRemoved(plan)
+            if (destination != null) {
+                me.rerere.rikkahub.data.export.ConversationArchive.export(context,
+                    snapshot.copy(messageNodes = snapshot.messageNodes.take(plan.removeCount),
+                        contextCompaction = null), destination)
+            }
+            check(session.beginHistoryMaintenance()) { "有正在处理的消息，请稍后重试" }
+            try {
+                session.saveMutex.withLock {
+                    check(!session.isGenerating && session.submittingMessage == null &&
+                        session.messageQueue.state.value.messages.isEmpty()) { "有正在处理的消息，请稍后重试" }
+                    check(session.state.value.messageNodes == snapshot.messageNodes &&
+                        session.state.value.contextCompaction == snapshot.contextCompaction &&
+                        session.state.value.config == snapshot.config) { "对话已变化，文件可保留，原记录未清理" }
+                    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                        check(conversationRepo.trimHistory(snapshot, trimmed)) { "对话已变化，原记录未清理" }
+                        session.state.update { latest -> latest.copy(
+                            messageNodes = trimmed.messageNodes, contextCompaction = trimmed.contextCompaction,
+                            config = trimmed.config,
+                        ) }
+                    }
+                }
+            } finally {
+                session.endHistoryMaintenance()
+                dispatchNextQueuedMessage(expected.id)
             }
         }
         Result.success(Unit)

@@ -28,6 +28,9 @@ data class ConversationConfig(
     val workspaceId: Uuid? = null,
     val modeInjectionIds: Set<Uuid> = emptySet(),
     val lorebookIds: Set<Uuid> = emptySet(),
+    val historyReminderThreshold: Int = 600,
+    val historyReminderDisabled: Boolean = false,
+    val historyReminderAfter: Int = 0,
 ) {
     fun withAssistant(value: Assistant) = copy(
         chatModelId = value.chatModelId, reasoningLevel = value.reasoningLevel,

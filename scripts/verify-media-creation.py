@@ -12,7 +12,7 @@ sql = re.findall(r'db\.execSQL\("([^"\n]+)"\)',
     (source / 'data/db/migrations/Migration_42_43.kt').read_text())
 assert len(sql) == 6
 assert 'Migration_42_43,' in (source / 'di/DataSourceModule.kt').read_text()
-assert re.search(r'version\s*=\s*43', (source / 'data/db/AppDatabase.kt').read_text())
+assert re.search(r'version\s*=\s*(?:43|44)', (source / 'data/db/AppDatabase.kt').read_text())
 
 
 def database(schema):

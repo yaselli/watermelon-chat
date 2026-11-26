@@ -13,13 +13,14 @@ data class ContextCompaction(
     val coveredMessageCount: Int,
     val coveredPrefixHash: String,
     val createdAtMillis: Long,
+    val includesArchivedHistory: Boolean = false,
 ) {
     fun matches(messages: List<UIMessage>): Boolean = summary.isNotBlank() &&
-        coveredMessageCount in 1..messages.size &&
+        coveredMessageCount in (if (includesArchivedHistory) 0 else 1)..messages.size &&
         coveredPrefixHash == prefixHash(messages, coveredMessageCount)
 }
 
-private fun prefixHash(messages: List<UIMessage>, count: Int): String {
+internal fun prefixHash(messages: List<UIMessage>, count: Int): String {
     // Constant-size persisted cursor: a long chat must not create another oversized database row.
     val digest = MessageDigest.getInstance("SHA-256")
     for (index in 0 until count) {
@@ -50,7 +51,8 @@ data class ContextCompactionPlan(
 ) {
     fun result(summary: String): ContextCompaction {
         require(summary.isNotBlank()) { "压缩模型返回了空摘要，原对话未改变" }
-        return ContextCompaction(summary.trim(), coveredMessageCount, coveredPrefixHash, System.currentTimeMillis())
+        return ContextCompaction(summary.trim(), coveredMessageCount, coveredPrefixHash, System.currentTimeMillis(),
+            includesArchivedHistory = previous?.includesArchivedHistory == true)
     }
 }
 

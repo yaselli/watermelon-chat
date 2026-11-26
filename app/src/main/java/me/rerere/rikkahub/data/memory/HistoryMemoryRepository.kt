@@ -33,10 +33,24 @@ class HistoryMemoryRepository(private val database: AppDatabase) : HistoryMemory
 
     override suspend fun sources(scope: String, nodeIds: List<String>): List<HistoryMemorySource> {
         if (nodeIds.isEmpty()) return emptyList()
-        return dao.sources(SimpleSQLiteQuery(
-            "$SOURCE_SQL AND nodeId IN (${nodeIds.joinToString(",") { "?" }})",
-            (listOf(scope) + nodeIds).toTypedArray(),
-        ))
+        val live = nodeIds.distinct().chunked(200).flatMap { ids -> dao.sources(SimpleSQLiteQuery(
+            "$SOURCE_SQL AND nodeId IN (${ids.joinToString(",") { "?" }})",
+            (listOf(scope) + ids).toTypedArray(),
+        )) }
+        val missing = nodeIds.toSet() - live.map { it.nodeId }.toSet()
+        val retained = missing.toList().chunked(200).flatMap {
+            database.memoryOrganizationDao().archivedEvidence(scope, it)
+        }.mapNotNull { evidence ->
+            runCatching {
+                me.rerere.rikkahub.utils.JsonInstant.decodeFromString<HistoryMemorySource>(
+                    requireNotNull(evidence.archivedSource)
+                )
+            }.getOrNull()?.takeIf { source ->
+                source.scope == scope && source.reference == evidence.savedRecallEvidence().source &&
+                    source.hash == evidence.sourceHash && source.text.contains(evidence.quote)
+            }
+        }.distinctBy { it.reference.key }
+        return live + retained
     }
 
     override suspend fun page(scope: String, after: String): List<HistoryMemorySource> = dao.sources(SimpleSQLiteQuery(

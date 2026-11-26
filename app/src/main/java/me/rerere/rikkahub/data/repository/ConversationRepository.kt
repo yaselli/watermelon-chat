@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -243,6 +243,25 @@ class ConversationRepository(
             val nodes = loadMessageNodes(entity.id)
             conversationEntityToConversation(entity, nodes)
         } else null
+    }
+
+    suspend fun trimHistory(expected: Conversation, updated: Conversation): Boolean = database.withTransaction {
+        val current = getConversationById(expected.id) ?: return@withTransaction false
+        if (current.messageNodes != expected.messageNodes || current.contextCompaction != expected.contextCompaction ||
+            current.config != expected.config) return@withTransaction false
+        val removed = expected.messageNodes.take(expected.messageNodes.size - updated.messageNodes.size)
+        val sources = me.rerere.rikkahub.data.memory.HistoryMemoryRepository(database)
+            .sources(expected.assistantId.toString(), removed.map { it.id.toString() })
+        sources.forEach { source ->
+            database.memoryOrganizationDao().retainSource(source.scope, source.conversationId, source.nodeId,
+                source.messageId, source.hash, JsonInstant.encodeToString(source))
+        }
+        conversationDAO.updateCompaction(expected.id.toString(),
+            JsonInstant.encodeToString(requireNotNull(updated.contextCompaction)))
+        updated.config?.let { conversationDAO.updateConfig(expected.id.toString(), JsonInstant.encodeToString(it)) }
+        updateConversation(current.copy(messageNodes = updated.messageNodes,
+            contextCompaction = updated.contextCompaction, config = updated.config))
+        true
     }
 
     suspend fun existsConversationById(uuid: Uuid): Boolean {
