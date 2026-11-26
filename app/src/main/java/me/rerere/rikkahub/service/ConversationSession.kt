@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -144,7 +144,23 @@ class ConversationSession(
         }
     }
 
+    @Volatile internal var historyMaintenance = false
+        private set
+
+    internal fun beginHistoryMaintenance(): Boolean = synchronized(claimLock) {
+        if (historyMaintenance || isGenerating || submittingMessage != null ||
+            messageQueue.state.value.messages.isNotEmpty()) return@synchronized false
+        historyMaintenance = true
+        true
+    }
+
+    internal fun endHistoryMaintenance() = synchronized(claimLock) { historyMaintenance = false }
+
     fun setJob(job: Job?) = synchronized(claimLock) {
+        if (historyMaintenance && job != null) {
+            job.cancel()
+            return@synchronized
+        }
         val previous = _generationJob.value
         _generationJob.value = job
         if (previous !== job) previous?.cancel()
@@ -190,7 +206,7 @@ class ConversationSession(
     private val claimLock = Any()
 
     fun tryClaimGeneration(newJob: Job): Boolean = synchronized(claimLock) {
-        if (isGenerating || messageQueue.state.value.messages.isNotEmpty() || submittingMessage != null) {
+        if (historyMaintenance || isGenerating || messageQueue.state.value.messages.isNotEmpty() || submittingMessage != null) {
             return@synchronized false
         }
         setJob(newJob)

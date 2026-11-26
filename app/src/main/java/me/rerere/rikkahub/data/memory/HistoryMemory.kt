@@ -13,6 +13,7 @@ data class HistoryReference(
     val key: String get() = "$conversationId/$nodeId/$messageId"
 }
 
+@Serializable
 data class HistoryMemorySource(
     val conversationId: String,
     val nodeId: String,

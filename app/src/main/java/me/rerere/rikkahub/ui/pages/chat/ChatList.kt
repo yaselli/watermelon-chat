@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -255,15 +255,7 @@ private fun ChatListNormal(
     // 自动跟随键盘滚动
     ImeLazyListAutoScroller(lazyListState = state)
 
-    // 对话大小警告对话框
-    val sizeInfo = rememberConversationSizeInfo(conversation)
-    var showSizeWarningDialog by rememberSaveable(conversation.id) { mutableStateOf(true) }
-    if (sizeInfo.showWarning && showSizeWarningDialog) {
-        ConversationSizeWarningDialog(
-            sizeInfo = sizeInfo,
-            onDismiss = { showSizeWarningDialog = false }
-        )
-    }
+    ConversationHistoryReminder(conversation)
 
     Box(
         modifier = Modifier

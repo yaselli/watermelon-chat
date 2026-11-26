@@ -16,6 +16,29 @@ import kotlin.uuid.Uuid
 
 class ConversationSessionClaimTest {
     @Test
+    fun `history maintenance excludes new and replacing generation until commit finishes`() = runBlocking {
+        val id = Uuid.random()
+        val session = ConversationSession(id, Conversation(id, Uuid.random(), messageNodes = emptyList()), this,
+            debugLog = {}) {}
+        val candidate = launch(start = CoroutineStart.LAZY) {}
+        val replacement = launch(start = CoroutineStart.LAZY) {}
+        try {
+            assertTrue(session.beginHistoryMaintenance())
+            assertFalse(session.beginHistoryMaintenance())
+            assertFalse(session.tryClaimGeneration(candidate))
+            session.setJob(replacement)
+            assertTrue(replacement.isCancelled)
+            session.endHistoryMaintenance()
+            assertTrue(session.tryClaimGeneration(candidate))
+            assertFalse(session.beginHistoryMaintenance())
+        } finally {
+            candidate.cancel()
+            replacement.cancel()
+            session.cleanup()
+        }
+    }
+
+    @Test
     fun `a claimed lazy task already owns generation`() = runBlocking {
         val id = Uuid.random()
         val session = ConversationSession(id, Conversation(id, Uuid.random(), messageNodes = emptyList()), this) {}

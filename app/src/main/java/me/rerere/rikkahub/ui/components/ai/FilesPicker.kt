@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -35,6 +35,9 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -101,6 +104,7 @@ internal fun FilesPicker(
     onSharedMusic: () -> Unit,
     conversationSettingsEnabled: Boolean,
 ) {
+    var showHistoryDialog by remember { mutableStateOf(false) }
     // settings 仍保留给 InjectionQuickConfigSheet -> ExtensionSelector 使用（它需要完整 Settings）
     val settings = LocalSettings.current
     val currentChatModel = LocalCurrentChatModel.current
@@ -198,6 +202,14 @@ internal fun FilesPicker(
             modifier = Modifier.clip(MaterialTheme.shapes.large).clickable(onClick = onSharedMusic),
         )
 
+        ListItem(
+            colors = rowColors,
+            leadingContent = { Icon(HugeIcons.Package01, contentDescription = null) },
+            headlineContent = { Text("整理聊天历史") },
+            supportingContent = { Text("导出、清理旧消息及提醒设置") },
+            modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { showHistoryDialog = true },
+        )
+
         // Compress History Button
         ListItem(
             colors = rowColors,
@@ -225,6 +237,13 @@ internal fun FilesPicker(
                     onShowCompressDialogChange(true)
                 },
         )
+    }
+
+    if (showHistoryDialog) {
+        me.rerere.rikkahub.ui.pages.chat.ConversationHistoryDialog(conversation) {
+            showHistoryDialog = false
+            onDismiss()
+        }
     }
 
     // Injection Bottom Sheet
