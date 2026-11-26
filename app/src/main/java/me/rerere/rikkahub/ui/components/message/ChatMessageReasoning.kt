@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Size
@@ -97,11 +98,10 @@ private fun rememberReasoningState(reasoning: UIMessagePart.Reasoning): Pair<Rea
         )
     }
  
-    LaunchedEffect(reasoning.reasoning, loading) {
+    LaunchedEffect(loading, displaySettings.showThinkingContent, displaySettings.autoCloseThinking) {
         if (loading) {
             if (!state.expandState.expanded && displaySettings.showThinkingContent)
                 state.expandState = ReasoningCardState.Preview
-            scrollState.animateScrollTo(scrollState.maxValue)
         } else {
             if (state.expandState.expanded) {
                 state.expandState = if (displaySettings.autoCloseThinking)
@@ -133,6 +133,14 @@ private fun ReasoningContent(
     fadeHeight: Float,
 ) {
     val isPreview = expandState == ReasoningCardState.Preview
+    if (isPreview) {
+        LaunchedEffect(scrollState) {
+            // Follow the measured content without restarting a scroll animation per token.
+            snapshotFlow { scrollState.maxValue }.collect { end ->
+                if (end != Int.MAX_VALUE) scrollState.scrollTo(end)
+            }
+        }
+    }
     val displaySettings = LocalDisplaySettings.current
     val thinkingStyle = MaterialTheme.typography.bodySmall.copy(
         fontSize = MaterialTheme.typography.bodySmall.fontSize * displaySettings.thinkingFontSizeRatio,

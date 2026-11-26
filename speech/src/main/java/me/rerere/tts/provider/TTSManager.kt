@@ -13,6 +13,7 @@ import me.rerere.tts.model.TTSRequest
 import me.rerere.tts.provider.providers.GeminiTTSProvider
 import me.rerere.tts.provider.providers.GroqTTSProvider
 import me.rerere.tts.provider.providers.MiMoTTSProvider
+import me.rerere.tts.provider.providers.DeepSeekTTSProvider
 import me.rerere.tts.provider.providers.MiniMaxTTSProvider
 import me.rerere.tts.provider.providers.OpenAITTSProvider
 import me.rerere.tts.provider.providers.QwenTTSProvider
@@ -29,6 +30,7 @@ class TTSManager(private val context: Context) {
     private val groqProvider = GroqTTSProvider()
     private val xaiProvider = XAITTSProvider()
     private val miMoProvider = MiMoTTSProvider()
+    private val deepSeekProvider = DeepSeekTTSProvider()
     private val elevenLabsProvider = ElevenLabsTTSProvider()
 
     fun generateSpeech(
@@ -44,6 +46,7 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.Groq -> groqProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.XAI -> xaiProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.MiMo -> miMoProvider.generateSpeech(context, providerSetting, request)
+            is TTSProviderSetting.DeepSeek -> deepSeekProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.ElevenLabs -> elevenLabsProvider.generateSpeech(context, providerSetting, request)
         }
     }

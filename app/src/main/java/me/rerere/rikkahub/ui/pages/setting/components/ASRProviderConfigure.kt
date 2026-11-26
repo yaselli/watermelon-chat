@@ -42,6 +42,7 @@ fun ASRProviderConfigure(
                     is ASRProviderSetting.SiliconFlow -> "SiliconFlow"
                     is ASRProviderSetting.Volcengine -> "Volcengine"
                     is ASRProviderSetting.MiMo -> "MiMo"
+                    is ASRProviderSetting.DeepSeek -> "DeepSeek"
                 },
                 onValueChange = {},
                 readOnly = true,
@@ -66,6 +67,7 @@ fun ASRProviderConfigure(
             is ASRProviderSetting.SiliconFlow -> SiliconFlowASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.Volcengine -> VolcengineASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.MiMo -> MiMoASRConfiguration(setting, onValueChange)
+            is ASRProviderSetting.DeepSeek -> DeepSeekASRConfiguration(setting, onValueChange)
         }
     }
 }
@@ -377,4 +379,10 @@ private fun MiMoASRConfiguration(
             label = "Segment Duration (s)"
         )
     }
+}
+
+@Composable
+private fun DeepSeekASRConfiguration(setting: ASRProviderSetting.DeepSeek, onValueChange: (ASRProviderSetting) -> Unit) {
+    OutlinedTextField(value = setting.baseUrl, onValueChange = { onValueChange(setting.copy(baseUrl = it)) }, label = { Text("API 地址") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = setting.apiKey, onValueChange = { onValueChange(setting.copy(apiKey = it)) }, label = { Text("API Key") }, modifier = Modifier.fillMaxWidth())
 }

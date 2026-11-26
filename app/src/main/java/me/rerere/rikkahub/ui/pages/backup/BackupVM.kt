@@ -7,6 +7,24 @@
 package me.rerere.rikkahub.ui.pages.backup
 
 import android.util.Log
+import android.net.Uri
+import android.app.Application
+import androidx.core.net.toUri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
+import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.saveUploadFromBytes
+import me.rerere.rikkahub.data.model.bindConfig
+import me.rerere.rikkahub.data.sync.importer.DeepSeekImporter
+import me.rerere.rikkahub.data.sync.importer.DeepSeekImportResult
+import me.rerere.rikkahub.data.backup.AutoBackupStore
+import me.rerere.rikkahub.data.backup.AutoBackupConfig
+import me.rerere.rikkahub.data.backup.AutoBackupState
+import me.rerere.rikkahub.data.backup.AutoBackupService
+import me.rerere.rikkahub.data.backup.AutoBackupScheduler
+import me.rerere.rikkahub.data.backup.SafBackupFolder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,16 +46,54 @@ import java.io.File
 private const val TAG = "BackupVM"
 
 class BackupVM(
+    private val context: Application,
+    private val filesManager: FilesManager,
     private val settingsStore: SettingsStore,
     private val webDavSync: WebDavSync,
     private val s3Sync: S3Sync,
     private val conversationRepository: ConversationRepository,
+    private val autoBackupStore: AutoBackupStore,
+    private val autoBackupService: AutoBackupService,
+    private val autoBackupScheduler: AutoBackupScheduler,
+    private val autoBackupFolder: SafBackupFolder,
 ) : ViewModel() {
     val settings = settingsStore.settingsFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = Settings.dummy()
     )
+
+    val autoBackup = autoBackupStore.states.stateIn(
+        viewModelScope, SharingStarted.Eagerly, AutoBackupState(),
+    )
+    val autoBackupRunning = autoBackupService.running
+
+    fun configureAutoBackup(edit: (AutoBackupConfig) -> AutoBackupConfig) {
+        viewModelScope.launch {
+            try {
+                autoBackupStore.configure(edit)
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                autoBackupStore.error(error.message ?: "设置保存失败")
+            }
+        }
+    }
+
+    fun chooseAutoBackupFolder(uri: Uri) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                autoBackupFolder.grant(uri)
+                autoBackupStore.configure { it.copy(folder = uri.toString()) }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                autoBackupStore.error("无法取得文件夹读写权限，请重新选择")
+            }
+        }
+    }
+
+    fun runAutoBackupNow() = autoBackupScheduler.backupNow()
 
     val webDavBackupItems = MutableStateFlow<UiState<List<WebDavBackupItem>>>(UiState.Idle)
     val s3BackupItems = MutableStateFlow<UiState<List<S3BackupItem>>>(UiState.Idle)
@@ -144,6 +200,29 @@ class BackupVM(
             skippedExistingConversations = skippedExistingConversations,
             skippedImageParts = payload.conversations.skippedImageParts,
             skippedEmptyMessages = payload.conversations.skippedEmptyMessages,
+        )
+    }
+
+    suspend fun restoreFromDeepSeek(file: File): DeepSeekImportResult = withContext(Dispatchers.IO) {
+        val currentSettings = settingsStore.settingsFlowRaw.first()
+        DeepSeekImporter.importStreaming(
+            file = file,
+            assistantId = currentSettings.assistantId,
+            shouldImportConversation = { !conversationRepository.existsConversationById(it) },
+            formatMissingAttachment = { name ->
+                context.getString(R.string.backup_page_import_deepseek_missing_attachment, name)
+            },
+            saveAttachment = { resource ->
+                val entity = filesManager.saveUploadFromBytes(
+                    bytes = resource.bytes,
+                    displayName = resource.fileName,
+                    mimeType = resource.mimeType,
+                )
+                filesManager.getFile(entity).toUri().toString()
+            },
+            onConversation = { conversation ->
+                conversationRepository.insertConversation(conversation.bindConfig(currentSettings))
+            },
         )
     }
 

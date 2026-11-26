@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.db.AppDatabase
@@ -30,6 +31,8 @@ import me.rerere.rikkahub.data.db.entity.ConversationEntity
 import me.rerere.rikkahub.data.db.entity.MessageNodeEntity
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.ConversationConfig
+import me.rerere.rikkahub.data.model.ContextCompaction
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.utils.JsonInstant
 import java.time.Instant
@@ -242,6 +245,25 @@ class ConversationRepository(
         } else null
     }
 
+    suspend fun trimHistory(expected: Conversation, updated: Conversation): Boolean = database.withTransaction {
+        val current = getConversationById(expected.id) ?: return@withTransaction false
+        if (current.messageNodes != expected.messageNodes || current.contextCompaction != expected.contextCompaction ||
+            current.config != expected.config) return@withTransaction false
+        val removed = expected.messageNodes.take(expected.messageNodes.size - updated.messageNodes.size)
+        val sources = me.rerere.rikkahub.data.memory.HistoryMemoryRepository(database)
+            .sources(expected.assistantId.toString(), removed.map { it.id.toString() })
+        sources.forEach { source ->
+            database.memoryOrganizationDao().retainSource(source.scope, source.conversationId, source.nodeId,
+                source.messageId, source.hash, JsonInstant.encodeToString(source))
+        }
+        conversationDAO.updateCompaction(expected.id.toString(),
+            JsonInstant.encodeToString(requireNotNull(updated.contextCompaction)))
+        updated.config?.let { conversationDAO.updateConfig(expected.id.toString(), JsonInstant.encodeToString(it)) }
+        updateConversation(current.copy(messageNodes = updated.messageNodes,
+            contextCompaction = updated.contextCompaction, config = updated.config))
+        true
+    }
+
     suspend fun existsConversationById(uuid: Uuid): Boolean {
         return conversationDAO.existsById(uuid.toString())
     }
@@ -253,6 +275,19 @@ class ConversationRepository(
 
     suspend fun updateGeneratedSuggestions(id: Uuid, suggestions: List<String>): Boolean {
         return conversationDAO.updateSuggestions(id.toString(), JsonInstant.encodeToString(suggestions)) > 0
+    }
+
+    /** Recheck persisted history inside the transaction; never rewrite nodes or resurrect deleted chats. */
+    suspend fun updateCompaction(
+        id: Uuid,
+        previous: ContextCompaction?,
+        value: ContextCompaction,
+    ): Boolean = database.withTransaction {
+        val current = getConversationById(id) ?: return@withTransaction false
+        if (current.contextCompaction != previous || !value.matches(current.currentMessages)) {
+            return@withTransaction false
+        }
+        conversationDAO.updateCompaction(id.toString(), JsonInstant.encodeToString(value)) > 0
     }
 
     suspend fun insertConversation(conversation: Conversation) {
@@ -269,6 +304,12 @@ class ConversationRepository(
             throw e
         }
     }
+
+    suspend fun updateConfig(id: Uuid, value: ConversationConfig?): Boolean =
+        conversationDAO.updateConfig(id.toString(), value?.let { JsonInstant.encodeToString(it) }.orEmpty()) > 0
+
+    suspend fun isFileReferenced(url: String): Boolean =
+        messageNodeDAO.isFileReferenced(JsonInstant.encodeToString(url).removeSurrounding("\""))
 
     /**
      * 更新对话。
@@ -287,8 +328,13 @@ class ConversationRepository(
     suspend fun updateConversation(conversation: Conversation) {
         try {
             database.withTransaction {
+                val stored = conversationDAO.getConversationById(conversation.id.toString())
                 conversationDAO.update(
-                    conversationToConversationEntity(conversation)
+                    conversationToConversationEntity(conversation).copy(
+                        // Only updateCompaction owns this column. An older streaming snapshot must not erase it.
+                        contextCompaction = stored?.contextCompaction.orEmpty(),
+                        config = stored?.config.orEmpty(),
+                    )
                 )
 
                 // 只查 id，不碰 messages 列，避免因个别行 blob 过大导致这里直接抛异常
@@ -342,8 +388,6 @@ class ConversationRepository(
                 if (changedNodeIds.isNotEmpty()) {
                     messageFtsManager.reindexNodes(
                         conversationId = conversation.id.toString(),
-                        conversationTitle = conversation.title,
-                        updateAt = conversation.updateAt,
                         changedNodeIds = changedNodeIds,
                         currentNodes = conversation.messageNodes,
                     )
@@ -416,6 +460,8 @@ class ConversationRepository(
             isPinned = conversation.isPinned,
             customSystemPrompt = conversation.customSystemPrompt ?: "",
             folderId = conversation.folderId?.toString() ?: "",
+            contextCompaction = conversation.contextCompaction?.let { JsonInstant.encodeToString(it) }.orEmpty(),
+            config = conversation.config?.let { JsonInstant.encodeToString(it) }.orEmpty(),
         )
     }
 
@@ -434,6 +480,10 @@ class ConversationRepository(
             isPinned = conversationEntity.isPinned,
             customSystemPrompt = conversationEntity.customSystemPrompt.ifEmpty { null },
             folderId = conversationEntity.folderId.ifEmpty { null }?.let { Uuid.parse(it) },
+            contextCompaction = decodeCompaction(conversationEntity.contextCompaction),
+            config = conversationEntity.config.takeIf { it.isNotBlank() }?.let {
+                JsonInstant.decodeFromString<ConversationConfig>(it)
+            },
         )
     }
 
@@ -445,6 +495,17 @@ class ConversationRepository(
                     conversationEntityToConversation(entity, emptyList())
                 }
             }
+    }
+
+    private fun decodeCompaction(value: String): ContextCompaction? {
+        if (value.isBlank()) return null
+        return try {
+            JsonInstant.decodeFromString<ContextCompaction>(value)
+        } catch (_: SerializationException) {
+            // A bad derived summary must never prevent opening the original conversation.
+            Log.w(TAG, "Ignored unreadable context summary; original history remains available")
+            null
+        }
     }
 
     suspend fun togglePinStatus(conversationId: Uuid) {

@@ -36,6 +36,7 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.StickyHeader
 import me.rerere.rikkahub.ui.context.LocalToaster
+import me.rerere.rikkahub.ui.pages.backup.components.AutoBackupSettings
 import me.rerere.rikkahub.ui.pages.backup.BackupVM
 import java.io.File
 import java.io.FileInputStream
@@ -140,6 +141,24 @@ fun ImportExportTab(
                             tempFile.delete()
                         }
 
+                        "deepseek" -> {
+                            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                val archive = File.createTempFile("deepseek-", ".zip", context.cacheDir)
+                                try {
+                                    requireNotNull(context.contentResolver.openInputStream(sourceUri)).use { input ->
+                                        archive.outputStream().use { output -> input.copyTo(output) }
+                                    }
+                                    vm.restoreFromDeepSeek(archive)
+                                } finally {
+                                    archive.delete()
+                                }
+                            }
+                            toaster.show(resources.getString(R.string.backup_page_import_deepseek_summary,
+                                result.importedConversations, result.skippedExistingConversations,
+                                result.skippedEmptyConversations, result.missingAttachments), type = ToastType.Success)
+                            isRestoring = false
+                            return@launch
+                        }
                         "cherry" -> {
                             // Cherry Studio导入：处理zip文件
                             val tempFile =
@@ -244,6 +263,8 @@ fun ImportExportTab(
             }
         }
 
+        item { AutoBackupSettings(vm) }
+
         stickyHeader {
             StickyHeader {
                 Text(stringResource(R.string.backup_page_import_from_other_app))
@@ -281,6 +302,23 @@ fun ImportExportTab(
                     supportingContent = { Text(stringResource(R.string.backup_page_import_cherry_studio_desc)) },
                     leadingContent = {
                         if (isRestoring && importType == "cherry") {
+                            CircularWavyProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Icon(HugeIcons.FileImport, null)
+                        }
+                    },
+                )
+                item(
+                    onClick = if (!isRestoring) {
+                        {
+                            importType = "deepseek"
+                            openDocumentLauncher.launch(arrayOf("application/zip"))
+                        }
+                    } else null,
+                    headlineContent = { Text(stringResource(R.string.backup_page_import_from_deepseek)) },
+                    supportingContent = { Text(stringResource(R.string.backup_page_import_deepseek_desc)) },
+                    leadingContent = {
+                        if (isRestoring && importType == "deepseek") {
                             CircularWavyProgressIndicator(modifier = Modifier.size(24.dp))
                         } else {
                             Icon(HugeIcons.FileImport, null)

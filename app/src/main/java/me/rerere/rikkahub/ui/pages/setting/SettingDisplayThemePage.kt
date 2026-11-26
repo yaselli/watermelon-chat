@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.ListItem
+import me.rerere.rikkahub.ui.theme.MaterialListItem as ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -48,6 +48,7 @@ import me.rerere.rikkahub.ui.pages.setting.components.PresetThemeButtonGroup
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
+import androidx.compose.material3.Slider
 
 @Composable
 fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
@@ -169,6 +170,7 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                         VisualThemePalette.ORIGINAL,
                         VisualThemePalette.SEA_SALT,
                         VisualThemePalette.APRICOT_CREAM,
+                        VisualThemePalette.APRICOT_PAPER,
                         VisualThemePalette.MIST_BLUE,
                     ).forEach { palette ->
                         item(
@@ -196,7 +198,7 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
             item {
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),
-                    title = { Text("聊天气泡材质（单选）") },
+                    title = { Text("整体主题材质（单选）") },
                 ) {
                     UiMaterialStyle.entries.forEach { style ->
                         item(
@@ -204,9 +206,12 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                             supportingContent = { Text(style.materialDescription()) },
                             trailingContent = {
                                 RadioButton(
-                                    selected = displaySetting.bubbleMaterialStyle == style,
+                                    selected = displaySetting.themeMaterial.style == style,
                                     onClick = {
-                                        updateDisplaySetting(displaySetting.copy(bubbleMaterialStyle = style))
+                                        updateDisplaySetting(displaySetting.copy(
+                                                themeMaterial =
+                                                    displaySetting.themeMaterial.copy(style = style)
+                                            ))
                                     },
                                 )
                             },
@@ -215,23 +220,29 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
                 }
             }
 
-            item {
-                CardGroup(
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    title = { Text("输入栏材质（单选）") },
-                ) {
-                    UiMaterialStyle.entries.forEach { style ->
-                        item(
-                            headlineContent = { Text(style.materialTitle()) },
-                            supportingContent = { Text(style.materialDescription()) },
-                            trailingContent = {
-                                RadioButton(
-                                    selected = displaySetting.inputMaterialStyle == style,
-                                    onClick = {
-                                        updateDisplaySetting(displaySetting.copy(inputMaterialStyle = style))
-                                    },
+            if (displaySetting.themeMaterial.style == UiMaterialStyle.FOG_GLASS) {
+                item {
+                    var transparency by
+                        remember(displaySetting.themeMaterial.safeFogTransparency) {
+                            mutableStateOf(displaySetting.themeMaterial.safeFogTransparency)
+                        }
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Text("毛玻璃透明度：${(transparency * 100).toInt()}%")
+                        Text("数值越大越通透，文字保持清晰", style = MaterialTheme.typography.bodySmall)
+                        Slider(
+                            value = transparency,
+                            onValueChange = { transparency = it },
+                            onValueChangeFinished = {
+                                updateDisplaySetting(
+                                    displaySetting.copy(
+                                        themeMaterial =
+                                            displaySetting.themeMaterial.copy(
+                                                fogTransparency = transparency
+                                            )
+                                    )
                                 )
                             },
+                            valueRange = 0f..1f,
                         )
                     }
                 }
@@ -240,20 +251,8 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
             item {
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),
-                    title = { Text("侧边栏外观") },
+                    title = { Text("侧边栏动效") },
                 ) {
-                    item(
-                        headlineContent = { Text("侧边栏水玻璃") },
-                        supportingContent = { Text("磨砂、半透明、亮边和柔和阴影") },
-                        trailingContent = {
-                            Switch(
-                                checked = displaySetting.enableGlassDrawer,
-                                onCheckedChange = {
-                                    updateDisplaySetting(displaySetting.copy(enableGlassDrawer = it))
-                                },
-                            )
-                        },
-                    )
                     item(
                         headlineContent = { Text("立体侧滑动效") },
                         supportingContent = { Text("侧边栏打开时，聊天页右移并产生立体透视") },
@@ -273,21 +272,26 @@ fun SettingDisplayThemePage(vm: SettingVM = koinViewModel()) {
 }
 
 private fun UiMaterialStyle.materialTitle(): String = when (this) {
+    UiMaterialStyle.SOFT_SHADOW -> "柔影"
     UiMaterialStyle.ORIGINAL -> "原始"
-    UiMaterialStyle.LIQUID_GLASS -> "水玻璃"
+    UiMaterialStyle.FOG_GLASS -> "毛玻璃"
+        UiMaterialStyle.LIQUID_GLASS -> "水玻璃"
     UiMaterialStyle.FROSTED -> "磨砂"
 }
 
 private fun UiMaterialStyle.materialDescription(): String = when (this) {
+    UiMaterialStyle.SOFT_SHADOW -> "暖色平面与柔和阴影，应用于聊天和全局界面"
     UiMaterialStyle.ORIGINAL -> "保留应用原有材质"
-    UiMaterialStyle.LIQUID_GLASS -> "清透玻璃、柔和高光与景深"
-    UiMaterialStyle.FROSTED -> "细腻雾面、低反射的磨砂质感"
-}
+    UiMaterialStyle.FOG_GLASS -> "柔雾轻透，背景化成淡淡的颜色"
+        UiMaterialStyle.LIQUID_GLASS -> "清透润亮，圆润亮边与柔和反光"
+        UiMaterialStyle.FROSTED -> "柔润哑光，轻柔底色与细腻雾面"
+    }
 
 private fun VisualThemePalette.paletteTitle(): String = when (this) {
     VisualThemePalette.ORIGINAL -> "原始配色"
     VisualThemePalette.SEA_SALT -> "海盐"
     VisualThemePalette.APRICOT_CREAM -> "奶杏"
+    VisualThemePalette.APRICOT_PAPER -> "杏笺"
     VisualThemePalette.MIST_BLUE -> "雾蓝"
     VisualThemePalette.SAKURA_MIST -> "樱雾"
     VisualThemePalette.AURORA -> "极光"
@@ -298,6 +302,7 @@ private fun VisualThemePalette.paletteDescription(): String = when (this) {
     VisualThemePalette.ORIGINAL -> "使用应用原有主题配色"
     VisualThemePalette.SEA_SALT -> "清透、低饱和的海盐配色"
     VisualThemePalette.APRICOT_CREAM -> "奶油暖白与柔和杏色，支持浅色与深色"
+    VisualThemePalette.APRICOT_PAPER -> "燕麦灰、纸白与杏橘，夜间转为暖炭灰"
     VisualThemePalette.MIST_BLUE -> "清淡雾蓝与冰白，支持浅色与深色"
     else -> "跟随当前配色设置"
 }
