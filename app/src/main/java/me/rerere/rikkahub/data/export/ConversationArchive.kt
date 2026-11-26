@@ -13,6 +13,8 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.utils.JsonInstant
+import me.rerere.ai.ui.UIMessagePart
+import java.nio.file.Files
 import java.io.File
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
@@ -33,13 +35,36 @@ object ConversationArchive {
     suspend fun export(context: Context, conversation: Conversation, destination: Uri) = withContext(Dispatchers.IO) {
         val temp = File.createTempFile("conversation-archive-", ".zip", context.cacheDir)
         try {
-            val attachments = conversation.files.distinct().filter { it.scheme in listOf("file", "content") }
+            val missing = conversation.files.distinct().filter { uri ->
+                uri.scheme == "file" && uri.path?.let { Files.notExists(File(it).toPath()) } == true
+            }.map { it.toString() }.toSet()
+            fun archivePart(part: UIMessagePart): UIMessagePart {
+                if (part is UIMessagePart.Tool) return part.copy(output = part.output.map(::archivePart))
+                val url = when (part) {
+                    is UIMessagePart.Image -> part.url
+                    is UIMessagePart.Video -> part.url
+                    is UIMessagePart.Audio -> part.url
+                    is UIMessagePart.Document -> part.url
+                    is UIMessagePart.VoiceMessage -> part.url
+                    else -> return part
+                }
+                if (url !in missing) return part
+                val name = if (part is UIMessagePart.Document) part.fileName else Uri.parse(url).lastPathSegment.orEmpty()
+                val transcript = (part as? UIMessagePart.VoiceMessage)?.transcript.orEmpty()
+                return UIMessagePart.Text(listOf("［原附件已缺失：$name］", transcript).filter { it.isNotBlank() }.joinToString("\n"), part.metadata)
+            }
+            val archived = if (missing.isEmpty()) conversation else conversation.copy(
+                messageNodes = conversation.messageNodes.map { node ->
+                    node.copy(messages = node.messages.map { it.copy(parts = it.parts.map(::archivePart)) })
+                }
+            )
+            val attachments = archived.files.distinct().filter { it.scheme in listOf("file", "content") }
                 .mapIndexed { index, uri ->
                     val extension = uri.lastPathSegment?.substringAfterLast('.', "")
                         ?.takeIf { Regex("[a-zA-Z0-9]{1,10}").matches(it) } ?: "bin"
                     uri.toString() to "media/$index.$extension"
                 }.toMap()
-            val manifest = ConversationArchiveManifest(conversation = conversation, attachments = attachments)
+            val manifest = ConversationArchiveManifest(conversation = archived, attachments = attachments)
             ZipOutputStream(temp.outputStream().buffered()).use { zip ->
                 zip.putNextEntry(ZipEntry("conversation.json"))
                 zip.write(JsonInstant.encodeToString(manifest).toByteArray())
@@ -47,7 +72,7 @@ object ConversationArchive {
                 zip.putNextEntry(ZipEntry("聊天记录.md"))
                 zip.write(buildString {
                     appendLine("# ${conversation.title}")
-                    prepareChatExportMessages(conversation.currentMessages).forEach {
+                    prepareChatExportMessages(archived.currentMessages).forEach {
                         appendLine("\n## ${it.role} · ${it.createdAt}\n")
                         appendLine(it.toText())
                     }

@@ -122,7 +122,7 @@ fun ConversationHistoryDialog(conversation: Conversation, onDismiss: () -> Unit)
                 }
                 plan.getOrNull()?.let { Text("本次清理 ${it.removeCount} 条，保留 ${it.keepCount} 条。为保留完整对话轮次，数量可能略有调整。") }
                 Text("清理前会保留聊天摘要；需要时调用压缩模型生成摘要，会产生模型用量。已有记忆及必要原文依据保留。")
-                Text("导出文件包含旧聊天、可读文本和本地附件；远程图片保留链接。共享附件不会在本次整理时删除。")
+                Text("导出文件包含旧聊天、可读文本和现有本地附件。已缺失的附件会在归档中标注；远程图片保留链接。共享附件不会在本次整理时删除。")
                 Row {
                     Checkbox(checked = disabled, onCheckedChange = { disabled = it }, enabled = !busy)
                     Text("此对话不再提醒", Modifier.padding(top = 12.dp))
