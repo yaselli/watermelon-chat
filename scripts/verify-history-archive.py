@@ -54,5 +54,5 @@ compiled = root / 'app/schemas/me.rerere.rikkahub.data.db.AppDatabase/44.json'
 if compiled.exists():
     table = next(e for e in json.loads(compiled.read_text())['database']['entities'] if e['tableName'] == 'memory_evidence')
     column = next(f for f in table['fields'] if f['columnName'] == 'archivedSource')
-    assert column['affinity'] == 'TEXT' and column['notNull'] is False and column['defaultValue'] == 'NULL'
+    assert column['affinity'] == 'TEXT' and column.get('notNull', False) is False and column['defaultValue'] == 'NULL'
 print('PASS: v43->44 preserves existing evidence; exact DAO hash/scope guards, atomic rollback and memory deletion cascade')
