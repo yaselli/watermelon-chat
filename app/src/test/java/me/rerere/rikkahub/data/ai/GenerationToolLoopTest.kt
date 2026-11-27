@@ -149,6 +149,18 @@ class GenerationToolLoopTest {
     }
 
     @Test
+    fun `auto approval waits for an actual ask user answer`() {
+        val question = call("q", "ask_user")
+        val tools = listOf(Tool("ask_user", "", needsApproval = true, execute = { emptyList() }))
+        val first = prepareChatGenerationTools(listOf(question), tools, true, false)
+        assertTrue(first.waitingForApproval)
+        assertEquals(ToolApprovalState.Pending, first.calls.single().approvalState)
+        assertTrue(prepareChatGenerationTools(first.calls, tools, true, false).waitingForApproval)
+        val answered = question.copy(approvalState = ToolApprovalState.Answered("tea"))
+        assertFalse(prepareChatGenerationTools(listOf(answered), tools, true, false).waitingForApproval)
+    }
+
+    @Test
     fun `global force confirmation and auto approval keep their precedence`() {
         val calls = listOf(call("one"))
         val definitions = listOf(Tool("example", "", execute = { emptyList() }))
