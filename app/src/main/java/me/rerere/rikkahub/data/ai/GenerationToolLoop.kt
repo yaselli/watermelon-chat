@@ -110,7 +110,8 @@ internal fun prepareChatGenerationTools(
     val updated = calls.map { call ->
         val definition = definitions.find { it.name == call.toolName }
         when {
-            autoApproveAll -> call
+            // A question needs an actual answer even when tool execution is preapproved.
+            autoApproveAll && definition?.name != "ask_user" -> call
             (forceConfirm || definition?.needsApproval == true) && call.approvalState is ToolApprovalState.Auto -> {
                 waiting = true
                 call.copy(approvalState = ToolApprovalState.Pending)
