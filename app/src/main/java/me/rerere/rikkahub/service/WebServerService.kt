@@ -67,7 +67,7 @@ class WebServerService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 val port = intent.getIntExtra(EXTRA_PORT, 8080)
-                val localhostOnly = intent.getBooleanExtra(EXTRA_LOCALHOST_ONLY, false)
+                val localhostOnly = intent.getBooleanExtra(EXTRA_LOCALHOST_ONLY, true)
                 webServerManager.start(port = port, localhostOnly = localhostOnly)
                 startObservingState()
             }
