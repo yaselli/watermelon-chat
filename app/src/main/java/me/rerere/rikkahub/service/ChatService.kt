@@ -1321,6 +1321,9 @@ class ChatService(
             val seenGenerationMessageIds = existingMessageIds.toMutableSet()
             var regenerationReplyId: Uuid? = null
 
+            var screenOperation = false
+            val screenTools = setOf("app_switch", "read_window_tree", "find_node", "click_node", "set_text",
+                "tap", "long_press", "scroll", "swipe", "global_action", "take_screenshot")
             // start generating
             generationHandler.generateText(
                 usageSource = if (applicationReceipt == null) UsageSource.CHAT else UsageSource.PROACTIVE,
@@ -1378,6 +1381,9 @@ class ChatService(
                 },
                 conversationId = conversationId.toString(),
             ).onCompletion {
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main.immediate) {
+                    RikkaAccessibilityService.instance?.operationOverlay?.finish(conversationId.toString())
+                }
                 // 取消 Live Update 通知
                 notifications.cancelLiveUpdateNotification(conversationId)
 
@@ -1429,6 +1435,27 @@ class ChatService(
                             updated
                         }
 
+                        val reply = chunk.messages.lastOrNull()
+                        if (applicationReceipt == null && reply != null && reply.role == MessageRole.ASSISTANT &&
+                            (reply.id !in existingMessageIds || reply.getTools().any { it.isPending })) {
+                            if (reply.getTools().any { it.toolName in screenTools }) screenOperation = true
+                            if (screenOperation && !isForeground.value) {
+                                val question = reply.getTools().firstOrNull { it.toolName == "ask_user" && it.isPending }
+                                val spoken = reply.parts.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
+                                withContext(Dispatchers.Main.immediate) {
+                                    RikkaAccessibilityService.instance?.operationOverlay?.update(
+                                        conversationId.toString(), true, senderName, spoken, question,
+                                        answer = { callId, payload ->
+                                            if (session.state.value.currentMessages.lastOrNull()?.getTools().orEmpty()
+                                                    .any { it.toolCallId == callId && it.isPending }) {
+                                                handleToolApproval(conversationId, callId, true, answer = payload)
+                                            }
+                                        },
+                                        stop = { appScope.launch { stopGeneration(conversationId) } },
+                                    )
+                                }
+                            }
+                        }
                         // 如果应用不在前台，发送 Live Update 通知
                         val hasNewReply = applicationReceipt == null ||
                             updatedConversation.currentMessages.lastOrNull()?.id !=

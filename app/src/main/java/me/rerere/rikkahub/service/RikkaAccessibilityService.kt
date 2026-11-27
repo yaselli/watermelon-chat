@@ -39,6 +39,8 @@ data class ActionLogEntry(
 
 class RikkaAccessibilityService : AccessibilityService() {
 
+    internal val operationOverlay by lazy { OperationOverlay(this) }
+
     private val gestureExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "RikkaAcc-Gesture").apply { isDaemon = true }
     }
@@ -61,12 +63,14 @@ class RikkaAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        operationOverlay
         instance = this
         _running.value = true
         Log.i(TAG, "AccessibilityService connected")
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        operationOverlay.clear()
         instance = null
         _running.value = false
         _lastActions.value = emptyList()
@@ -75,6 +79,7 @@ class RikkaAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        operationOverlay.clear()
         instance = null
         _running.value = false
         gestureHandlerThread.quitSafely()

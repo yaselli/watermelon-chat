@@ -45,6 +45,8 @@ object AccessibilityServiceHandle {
     ): JsonObject {
         val svc = RikkaAccessibilityService.instance
             ?: return notActiveEnvelope()
+        svc.operationOverlay.awaitResume()
+        if (RikkaAccessibilityService.instance !== svc) return notActiveEnvelope()
         return block(svc)
     }
 
